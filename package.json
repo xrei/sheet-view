@@ -1,0 +1,102 @@
+{
+  "name": "sheet-view",
+  "version": "0.1.0",
+  "description": "Headless bottom-sheet / modal built on native <dialog> + CSS scroll-snap. Framework-agnostic core, thin React adapter, optional default theme.",
+  "type": "module",
+  "packageManager": "pnpm@10.13.1",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "files": [
+    "dist",
+    "src"
+  ],
+  "types": "./dist/index.d.ts",
+  "module": "./dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "default": "./dist/react.js"
+    },
+    "./base.css": "./dist/base.css",
+    "./theme.css": "./dist/theme.css",
+    "./styles.css": "./dist/styles.css",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsdown && node scripts/copy-css.mjs",
+    "dev": "tsdown --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check:exports": "publint --strict",
+    "check:types": "attw --pack . --profile esm-only --exclude-entrypoints ./base.css ./theme.css ./styles.css",
+    "check": "pnpm build && pnpm check:exports && pnpm check:types",
+    "prepack": "pnpm build",
+    "docs:dev": "pnpm build && vitepress dev docs --port 5175",
+    "docs:build": "pnpm build && vitepress build docs",
+    "docs:preview": "vitepress preview docs --port 5175"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  },
+  "keywords": [
+    "sheet",
+    "bottom-sheet",
+    "modal",
+    "dialog",
+    "drawer",
+    "headless",
+    "unstyled",
+    "react",
+    "scroll-snap",
+    "showModal"
+  ],
+  "license": "MIT",
+  "author": "Rei",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xrei/sheet-view.git"
+  },
+  "homepage": "https://xrei.github.io/sheet-view/",
+  "bugs": {
+    "url": "https://github.com/xrei/sheet-view/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.4",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.2.0",
+    "jsdom": "^29.1.1",
+    "publint": "^0.3.21",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "tsdown": "^0.22.3",
+    "typescript": "^7",
+    "vite": "^7.1.0",
+    "vitepress": "^1.6.4",
+    "vitest": "^4.1.9"
+  }
+}

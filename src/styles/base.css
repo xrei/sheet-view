@@ -1,0 +1,247 @@
+/* sheet-view — base.css (REQUIRED)
+ *
+ * Structural styles the sheet cannot function without: full-viewport dialog,
+ * the scroll-snap drag container, snap points, card layout, size variants, and
+ * the desktop centering. NO colors, radii, or shadows live here — bring your
+ * own skin, or import `sheet-view/theme.css`.
+ *
+ * Deliberately UNLAYERED: the gesture-critical rules (scroll-snap, positioning,
+ * touch / overscroll behavior) must not lose a specificity battle to a
+ * consumer's unlayered utility class (e.g. Tailwind v3), which would silently
+ * break dragging. Unlayered here = always wins over layered consumer styles.
+ *
+ * Styling API: target `[data-sheet-part="…"]`, `[data-sheet-state="…"]`,
+ * `[data-sheet-size="…"]`, or the mirrored `.sv-sheet__*` classes. Both are
+ * frozen — renames are a semver-major change.
+ */
+
+/* Dialog — full-viewport modal, transparent, no default centered layout */
+.sv-sheet {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  max-width: 100vw;
+  height: 100dvh;
+  max-height: 100dvh;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  overflow: hidden;
+}
+.sv-sheet:not([open]) {
+  display: none;
+}
+
+/* Native ::backdrop stays transparent — the real dim is .sv-sheet__backdrop, a
+   regular child, because ::backdrop can't transition out across dialog.close(). */
+.sv-sheet::backdrop {
+  background: transparent;
+}
+
+/* In-dialog dim layer. Mobile: opacity driven imperatively per scroll frame,
+   coupled to the scroll-snap position. Desktop: toggled by state (below).
+   Colour + blur + transition live in the theme. */
+.sv-sheet__backdrop {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Scroll-snap container — drives drag-to-close on mobile. overscroll-behavior:
+   none (not contain) kills iOS rubber-band past either snap edge. */
+.sv-sheet__scroll {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: none;
+}
+.sv-sheet__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* Closed snap area — transparent spacer holding scrollTop=0 = closed */
+.sv-sheet__spacer {
+  width: 100%;
+  height: 100dvh;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  pointer-events: none;
+  background: transparent;
+}
+
+/* Open snap area — full viewport height, card bottom-aligned */
+.sv-sheet__panel {
+  width: 100%;
+  height: 100dvh;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  position: relative;
+}
+
+/* Card — the visible surface. position: relative anchors overlay decorations;
+   no overflow clip so those decorations can extend past its edges. */
+.sv-sheet__card {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Mobile size variants — card height inside the 100dvh panel. Scoped to mobile
+   so the desktop widths (below) aren't fighting a height. */
+@media (max-width: 767px) {
+  .sv-sheet__card[data-sheet-size='sm'] {
+    height: auto;
+    max-height: calc(100dvh - 40px);
+  }
+  .sv-sheet__card[data-sheet-size='md'] {
+    height: 65dvh;
+  }
+  .sv-sheet__card[data-sheet-size='lg'],
+  .sv-sheet__card[data-sheet-size='xl'] {
+    height: calc(100dvh - 40px);
+  }
+}
+
+/* Drag handle pill (mobile only) */
+.sv-sheet__handle {
+  flex-shrink: 0;
+  width: 36px;
+  height: 5px;
+  margin: 8px auto 4px;
+}
+
+.sv-sheet__header {
+  flex-shrink: 0;
+}
+
+/* Scrollable content area. No built-in padding — consumer bodies bring their own. */
+.sv-sheet__content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Footer — collapses when empty; safe-area padding is structural */
+.sv-sheet__footer {
+  flex-shrink: 0;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.sv-sheet__footer:empty {
+  display: none;
+}
+
+/* Overlay slot — boxless wrapper so portaled decorations behave as direct
+   card children (anchored to the card, free to extend past its edges). */
+.sv-sheet__overlay {
+  display: contents;
+}
+
+/* Top-layer escape hatch — last child of the <dialog>, so it's inside the modal
+   top layer and paints above backdrop + card. */
+.sv-sheet__toplayer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Default header layout (structure only; type + borders live in the theme) */
+.sv-sheet__default-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.sv-sheet__title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+.sv-sheet__close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+  /* Reset the native button so a global `button {}` reset on the host page can't
+     hijack the close control: this class selector (0,1,0), unlayered, beats a bare
+     `button` (0,0,1); appearance:none drops the native face, and a transparent
+     background lets the themed card show through. The skin (border, size, colour)
+     stays in theme.css so it's still token-overridable. */
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+}
+/* Expand the touch target to ≥44×44 (HIG / WCAG 2.5.5) without growing the
+   visible button — the centered pseudo-element is the actual hit area. */
+.sv-sheet__close::before {
+  content: '';
+  position: absolute;
+  inset: 50% auto auto 50%;
+  translate: -50% -50%;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+}
+.sv-sheet__close[aria-disabled='true'] {
+  cursor: not-allowed;
+}
+
+/* Desktop — centered card, no scroll-snap drag-to-close */
+@media (min-width: 768px) {
+  .sv-sheet__scroll {
+    scroll-snap-type: none;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .sv-sheet__spacer,
+  .sv-sheet__handle {
+    display: none;
+  }
+  .sv-sheet__panel {
+    height: auto;
+    display: block;
+    width: auto;
+  }
+  .sv-sheet__card {
+    height: auto;
+    max-height: calc(100vh - 64px);
+    margin: 0 auto;
+  }
+  .sv-sheet__card[data-sheet-size='sm'] {
+    width: 400px;
+  }
+  .sv-sheet__card[data-sheet-size='md'] {
+    width: 560px;
+  }
+  .sv-sheet__card[data-sheet-size='lg'] {
+    width: min(800px, calc(100vw - 64px));
+  }
+  .sv-sheet__card[data-sheet-size='xl'] {
+    width: min(1000px, calc(100vw - 64px));
+  }
+
+  /* Desktop dim is toggled by state; colour/blur/transition live in the theme. */
+  .sv-sheet[data-sheet-state='open'] .sv-sheet__backdrop {
+    opacity: 1;
+  }
+}

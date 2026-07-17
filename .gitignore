@@ -1,0 +1,11 @@
+node_modules/
+dist/
+*.tgz
+*.log
+.DS_Store
+coverage/
+.vitest/
+
+# Docs (VitePress build output)
+docs/.vitepress/dist/
+docs/.vitepress/cache/

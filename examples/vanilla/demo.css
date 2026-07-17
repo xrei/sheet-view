@@ -1,0 +1,251 @@
+/* Demo chrome for the docs site, which imports this file directly. Everything is
+   class-scoped (or scoped under .sv-demo) so it can't leak onto the host's own
+   elements. Colours use light-dark() so the chrome follows the docs' light/dark,
+   just like the library itself. (Same Safari 15.4+ / light-dark floor.) */
+
+.sv-demo .row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* Demo buttons — a class, never a bare `button {}`, so the sheet's own close
+   control (and the host page's buttons) are never hijacked. */
+.demo-btn {
+  font: inherit;
+  padding: 10px 18px;
+  border: 1px solid light-dark(#d0d0d5, #48484c);
+  border-radius: 10px;
+  background: light-dark(#fff, #2c2c2e);
+  color: light-dark(#1a1a1a, #f2f2f7);
+  cursor: pointer;
+}
+/* hover:hover only — on touch, iOS keeps :hover after a tap until you tap
+   elsewhere, so a swipe-closed sheet would leave its trigger button greyed. */
+@media (hover: hover) {
+  .demo-btn:hover {
+    background: light-dark(#f4f4f6, #3a3a3e);
+  }
+}
+
+/* legend mapping each colour to a part */
+.legend {
+  margin-top: 24px;
+}
+.legend ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+.legend li {
+  display: grid;
+  grid-template-columns: 16px 130px 1fr;
+  gap: 12px;
+  align-items: baseline;
+}
+.legend .swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  transform: translateY(2px);
+  /* Hairline so the black "backdrop" swatch stays visible on a dark page too. */
+  border: 1px solid light-dark(rgba(0, 0, 0, 0.15), rgba(255, 255, 255, 0.25));
+}
+.legend code {
+  font-size: 13px;
+  font-weight: 600;
+}
+.legend .desc {
+  color: light-dark(#666, #a6a6ad);
+  font-size: 14px;
+}
+.legend .note {
+  margin-top: 18px;
+  color: light-dark(#888, #9a9aa1);
+  font-size: 13px;
+}
+
+/* body used by the plain variant sheets */
+.demo-body {
+  padding: 20px;
+}
+.demo-body p {
+  margin: 0 0 12px;
+}
+.demo-body p:last-child {
+  margin-bottom: 0;
+}
+.demo-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px;
+}
+
+/* Sign-in form used by the autofill demo. */
+.demo-form {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+}
+.demo-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.demo-form input {
+  font: inherit;
+  font-size: max(1em, 16px); /* keep ≥16px so iOS doesn't zoom on focus */
+  padding: 10px 12px;
+  border: 1px solid light-dark(#d0d0d5, #48484c);
+  border-radius: 10px;
+  background: light-dark(#fff, #1c1c1e);
+  color: inherit;
+}
+.demo-form .demo-btn {
+  justify-self: start;
+  margin-top: 4px;
+}
+
+/* Toast rendered above an open sheet via useSheetTopLayer (React toast demo). The
+   top layer is pointer-events:none, so anything portaled in must re-enable them. */
+.demo-toast {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: light-dark(#111, #f2f2f7);
+  color: light-dark(#fff, #1a1a1a);
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  pointer-events: auto;
+  z-index: 9999;
+}
+
+/* ---------- anatomy ----------
+   Scoped to the ONE sheet opened with cardClassName:"anatomy", so the plain
+   variant sheets keep the default theme. Rules target the data-sheet-part hooks;
+   theme.css is @layer'd, so these page rules win. These render inside the sheet
+   (top layer), not inside .sv-demo, so they stay class-scoped. */
+
+/* The anatomy is a fixed reference diagram: its pale part-tints and dark labels
+   are drawn for a light card. Pin the whole sheet to color-scheme:light so the
+   card surface stays light and the body text stays dark (readable) even when the
+   host page is dark — otherwise the inherited dark scheme flips text to light and
+   it vanishes on the tints. The theming showcase is the "Themed" variant, not
+   this diagram. */
+.sv-sheet:has(.anatomy) {
+  color-scheme: light;
+}
+
+.sv-sheet__card.anatomy {
+  outline: 2px solid #7c3aed;
+  outline-offset: 0;
+}
+.sv-sheet__card.anatomy::before {
+  content: 'card';
+  position: absolute;
+  top: -12px;
+  left: 12px;
+  z-index: 1;
+  background: #7c3aed;
+}
+.sv-sheet:has(.anatomy) [data-sheet-part='backdrop']::before {
+  content: 'backdrop';
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  /* The backdrop is the dark dim, so its chip is dark too — following its colour
+     like every other chip (white text comes from the shared rule below). A light
+     hairline keeps it legible against the dim it sits on. */
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+.sv-sheet__card.anatomy [data-sheet-part='header'] {
+  background: #eff6ff;
+}
+.sv-sheet__card.anatomy [data-sheet-part='default-header']::before {
+  content: 'header';
+  flex-shrink: 0;
+  align-self: center;
+  background: #2563eb;
+}
+.sv-sheet__card.anatomy [data-sheet-part='content'] {
+  background: #f0fdf4;
+}
+.sv-sheet__card.anatomy [data-sheet-part='footer'] {
+  background: #fffbeb;
+}
+
+/* Desktop rounds all four corners of the card and hides the drag handle, so the
+   header sits flush at the top and the footer at the bottom. Their solid tint
+   fills would square off the card's rounded corners — and the card can't clip
+   them (overflow stays visible so the overlay badge can spill past its edge). So
+   round the end caps to inherit the card's corner radius, keeping the tints
+   flush with the card outline. Mobile needs none of this: the handle offsets the
+   header below the top corners, and the card's bottom corners are square anyway. */
+@media (min-width: 768px) {
+  .sv-sheet__card.anatomy [data-sheet-part='header'] {
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
+  }
+  .sv-sheet__card.anatomy [data-sheet-part='footer'] {
+    border-bottom-left-radius: inherit;
+    border-bottom-right-radius: inherit;
+  }
+}
+
+/* shared chip look — the CSS labels above + the JS-injected labels below */
+.part-chip,
+.sv-sheet__card.anatomy::before,
+.sv-sheet:has(.anatomy) [data-sheet-part='backdrop']::before,
+.sv-sheet__card.anatomy [data-sheet-part='default-header']::before,
+.overlay-badge {
+  font: 600 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.02em;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: #fff;
+  white-space: nowrap;
+}
+.part-chip--content {
+  display: inline-block;
+  position: sticky;
+  top: 10px;
+  background: #16a34a;
+}
+.part-chip--footer {
+  display: inline-block;
+  background: #d97706;
+}
+.overlay-badge {
+  position: absolute;
+  top: -13px;
+  right: -8px;
+  background: #db2777;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+.anatomy-content {
+  padding: 16px 20px;
+}
+.anatomy-content p {
+  margin: 0 0 12px;
+}
+.anatomy-content code {
+  background: rgba(0, 0, 0, 0.06);
+  padding: 1px 5px;
+  border-radius: 5px;
+  font-size: 0.9em;
+}
+.anatomy-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 20px;
+}

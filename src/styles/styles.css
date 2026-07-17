@@ -1,0 +1,9 @@
+/* sheet-view — styles.css (CONVENIENCE)
+ *
+ * The one-liner: required structure + default theme in a single import.
+ *   import 'sheet-view/styles.css'
+ * Equivalent to importing base.css then theme.css. Note this ships the
+ * opinionated default skin — for a headless setup import only base.css.
+ */
+@import './base.css';
+@import './theme.css';
