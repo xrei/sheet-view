@@ -1,5 +1,9 @@
 # sheet-view
 
+[![npm version](https://img.shields.io/npm/v/sheet-view.svg)](https://www.npmjs.com/package/sheet-view)
+[![minzipped size](https://img.shields.io/bundlephobia/minzip/sheet-view.svg)](https://bundlephobia.com/package/sheet-view)
+[![license](https://img.shields.io/npm/l/sheet-view.svg)](./LICENSE)
+
 A headless bottom-sheet / modal built on browser-native primitives: native
 `<dialog>.showModal()` for modality, focus-trap, Escape, and focus-restore; CSS
 `scroll-snap` for the drag-to-close gesture; `dvh` for iOS keyboard sizing. A
