@@ -58,7 +58,10 @@ function syncDialogLabel(entry: SheetEntry): void {
 export function createSheetCore(options: SheetCoreOptions = {}): SheetCore {
   const closeMs = options.closeMs ?? 320
   const dragCloseMs = options.dragCloseMs ?? 220
-  const openSettleMs = options.openSettleMs ?? 400
+  // enterMs is the CSS entrance duration (base.css owns the animation itself);
+  // the drag only arms once that entrance is over, so it defaults to the same value.
+  const enterMs = options.enterMs
+  const openSettleMs = options.openSettleMs ?? enterMs ?? 400
   const breakpoint = options.breakpoint ?? 768
   const useZoomLock = options.zoomLock ?? false
   const defaultCloseLabel = options.closeLabel ?? 'Close'
@@ -171,6 +174,11 @@ export function createSheetCore(options: SheetCoreOptions = {}): SheetCore {
     // already removed the dialog. Otherwise slide the still-visible card down —
     // instantly under reduced motion.
     if (!dragged && !immediate) {
+      // Hand the dim back to CSS: on mobile its opacity is inline (set per scroll
+      // frame), which would otherwise hold it at full through the whole exit and
+      // pop it out with the DOM. base.css fades it from the closing state. A no-op
+      // on desktop, where the dim was never driven inline.
+      entry.backdrop.style.opacity = ''
       if (prefersReducedMotion()) {
         entry.scroll.scrollTop = 0
       } else {
@@ -261,6 +269,12 @@ export function createSheetCore(options: SheetCoreOptions = {}): SheetCore {
     if (props.key) sheetsByKey.set(props.key, entry)
 
     document.body.append(entry.dialog)
+    // Feed the entrance duration to base.css as the PRIVATE input of
+    // --sheet-enter-duration: written only when set, and read behind the public
+    // token, so a consumer's CSS override still wins over this inline value.
+    if (enterMs != null) {
+      entry.dialog.style.setProperty('--_sheet-enter-ms', `${enterMs}ms`)
+    }
     entry.rootStyleKeys = applyRootStyle(entry.dialog, props.style)
     mountSlots(entry)
     syncDialogLabel(entry)

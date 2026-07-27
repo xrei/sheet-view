@@ -16,12 +16,14 @@ Positioning and the scroll-snap container need real CSS to work, so the styles c
 in two parts — a small required structural sheet and an optional default skin:
 
 ```js
-import 'sheet-view/base.css' // REQUIRED — structure (layout, scroll-snap, sizing)
+import 'sheet-view/base.css' // REQUIRED — structure + motion (layout, scroll-snap, animations)
 import 'sheet-view/theme.css' // OPTIONAL — the default skin (colours, radius, shadow)
 ```
 
 - `base.css` is deliberately **unlayered** so its gesture-critical rules can't be
-  overridden by a stray utility class.
+  overridden by a stray utility class. It also owns the **motion**: the entrance is a
+  mechanism, not a skin, so a themeless sheet still slides in — retune it with
+  [motion tokens](./theming#motion).
 - `theme.css` is wrapped in `@layer sheet-view` so your own styles always win.
 - `sheet-view/styles.css` imports both in one line.
 

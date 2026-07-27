@@ -111,7 +111,15 @@ export interface SheetCoreOptions {
   closeMs?: number
   /** Exit budget in ms for a drag-close (transform off a frozen scroller). Default 220. */
   dragCloseMs?: number
-  /** Delay in ms after open before drag-to-close arms. Default 400. */
+  /**
+   * Mobile entrance duration in ms — the JS-side mirror of the
+   * `--sheet-enter-duration` token, written onto each sheet as the private
+   * `--_sheet-enter-ms` (so a CSS override of the public token still wins, and
+   * `prefers-reduced-motion` still clamps it). Also the default for
+   * `openSettleMs`. Unset = base.css's own default, 400.
+   */
+  enterMs?: number
+  /** Delay in ms after open before drag-to-close arms. Default: `enterMs` (400). */
   openSettleMs?: number
   /** Viewport width (px) below which the mobile slide-up layout applies. Default 768. */
   breakpoint?: number

@@ -16,19 +16,73 @@ describe('CSS contract', () => {
   })
 
   it('#4 — reduced-motion cross-fades the sheet in instead of sliding it (not a pop)', () => {
-    expect(theme).toContain('@media (prefers-reduced-motion: reduce)')
-    expect(theme).toMatch(/prefers-reduced-motion[\s\S]*sv-sheet-fade-in/)
-    expect(theme).toContain('@keyframes sv-sheet-fade-in')
+    expect(base).toContain('@media (prefers-reduced-motion: reduce)')
+    expect(base).toMatch(/prefers-reduced-motion[\s\S]*sv-sheet-fade-in/)
+    expect(base).toContain('@keyframes sv-sheet-fade-in')
   })
 
   it('mobile open slides the card in with a compositor transform, not a scroll', () => {
     // iOS Safari won't animate scrollTo() inside a mandatory-snap scroller, so the
     // entrance is a GPU transform keyframe from translateY(100%) while the scroller
     // rests at the open snap point (drag-armed). focusOnOpen keeps its own rise-in.
-    expect(theme).toContain('@keyframes sv-sheet-slide-up')
-    expect(theme).toMatch(/@keyframes sv-sheet-slide-up[\s\S]*?translateY\(100%\)/)
-    expect(theme).toMatch(
+    expect(base).toContain('@keyframes sv-sheet-slide-up')
+    expect(base).toMatch(/@keyframes sv-sheet-slide-up[\s\S]*?translateY\(100%\)/)
+    expect(base).toMatch(
       /:not\(\[data-sheet-focus-open\]\)[\s\S]*?animation:[\s\S]*?sv-sheet-slide-up/,
+    )
+  })
+
+  it('motion lives in the REQUIRED base.css — theme.css is optional, so a themeless sheet must still animate', () => {
+    // The JS open path never animates the scroll (iOS refuses inside a mandatory-snap
+    // scroller), so these keyframes ARE the entrance: in theme.css a base-only
+    // consumer got a teleporting card with a fading dim.
+    for (const rule of [
+      '@keyframes sv-sheet-slide-up',
+      '@keyframes sv-sheet-rise-in',
+      '@keyframes sv-sheet-fade-in',
+      "[data-sheet-state='closing']",
+    ]) {
+      expect(base).toContain(rule)
+      expect(theme).not.toContain(rule)
+    }
+    // The close button's hover fade is the one exception: it animates themed
+    // properties, so it stays skin — and it's the ONLY transition left in the theme
+    // (its own reduced-motion `transition: none` included).
+    const css = theme.replace(/\/\*[\s\S]*?\*\//g, '')
+    const owners = [...css.matchAll(/([.\w-]+)\s*(?::hover)?\s*\{[^}]*transition:/g)]
+    expect(owners.map((m) => m[1])).toEqual(['.sv-sheet__close', '.sv-sheet__close'])
+    expect(css).not.toContain('animation:')
+  })
+
+  it('every duration is a token, so motion is tunable without a cascade fight', () => {
+    const css = base.replace(/\/\*[\s\S]*?\*\//g, '')
+    const found = [
+      ...new Set([...css.matchAll(/--sheet-[a-z-]+/g)].map((m) => m[0])),
+    ].sort()
+    expect(found).toEqual([
+      '--sheet-backdrop-duration',
+      '--sheet-enter-duration',
+      '--sheet-enter-duration-focus',
+      '--sheet-enter-easing',
+      '--sheet-exit-duration',
+    ])
+    // No hardcoded ms/s outside the token defaults: each animation/transition reads
+    // a private var that resolves through the public token.
+    expect(css).toMatch(/animation: sv-sheet-slide-up var\(--_sheet-enter\)/)
+    expect(css).toMatch(/transition: opacity var\(--_sheet-enter\) ease/)
+  })
+
+  it('the mobile exit fades the dim out — it must not pop with the DOM', () => {
+    // The card's exit is a scroll the UA times, so only the dim can be declared
+    // here; it fades from the closing state once JS drops its inline per-frame
+    // opacity. The rule must come after the two enter rules it shares (0,3,0) with.
+    const css = base.replace(/\/\*[\s\S]*?\*\//g, '')
+    const mobile = css.slice(css.indexOf('@media (max-width: 767px)'))
+    expect(mobile).toMatch(
+      /\[data-sheet-state='closing'\] \.sv-sheet__backdrop \{\s*opacity: 0;\s*transition: opacity var\(--_sheet-exit\)/,
+    )
+    expect(mobile.indexOf('data-sheet-settled')).toBeLessThan(
+      mobile.indexOf("data-sheet-state='closing'"),
     )
   })
 
