@@ -128,8 +128,9 @@ sheet without touching the file. Overrides apply in both light and dark:
   `--sheet-header-padding`
 - **Motion** (from `base.css`): `--sheet-enter-duration` (`400ms`),
   `--sheet-enter-easing`, `--sheet-enter-duration-focus` (75 % of the enter
-  duration — the shorter `focusOnOpen` rise), `--sheet-exit-duration` (`250ms`,
-  desktop), `--sheet-backdrop-duration` (`250ms`, desktop dim)
+  duration — the shorter `focusOnOpen` rise), `--sheet-exit-duration` (`250ms` —
+  the desktop card exit and the mobile dim's fade-out),
+  `--sheet-backdrop-duration` (`250ms`, desktop dim)
 
 Per **instance**, pass `className` / `style` to `open()`. `style` sets tokens on the
 root, so it reaches every part — including the backdrop, which a card class can't

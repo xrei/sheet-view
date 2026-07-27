@@ -332,6 +332,18 @@
   .sv-sheet[data-sheet-focus-open]:not([data-sheet-settled]) .sv-sheet__backdrop {
     transition-duration: var(--_sheet-enter-focus);
   }
+
+  /* Exit. The card leaves by scrolling (the snap container glides to the closed
+     point), which no rule here can time — but the dim must still go with it. A
+     non-drag close drops the per-frame inline opacity, handing the dim back to
+     this rule so it fades on a declared timeline instead of holding full until the
+     DOM is removed. Later in source than the two rules above, same (0,3,0), so it
+     wins in both settle states. A drag-close never reaches here: it fades the dim
+     inline, already in lockstep with the card transform. */
+  .sv-sheet[data-sheet-state='closing'] .sv-sheet__backdrop {
+    opacity: 0;
+    transition: opacity var(--_sheet-exit) ease;
+  }
 }
 
 @media (min-width: 768px) {

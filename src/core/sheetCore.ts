@@ -174,6 +174,11 @@ export function createSheetCore(options: SheetCoreOptions = {}): SheetCore {
     // already removed the dialog. Otherwise slide the still-visible card down —
     // instantly under reduced motion.
     if (!dragged && !immediate) {
+      // Hand the dim back to CSS: on mobile its opacity is inline (set per scroll
+      // frame), which would otherwise hold it at full through the whole exit and
+      // pop it out with the DOM. base.css fades it from the closing state. A no-op
+      // on desktop, where the dim was never driven inline.
+      entry.backdrop.style.opacity = ''
       if (prefersReducedMotion()) {
         entry.scroll.scrollTop = 0
       } else {

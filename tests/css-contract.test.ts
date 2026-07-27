@@ -72,6 +72,20 @@ describe('CSS contract', () => {
     expect(css).toMatch(/transition: opacity var\(--_sheet-enter\) ease/)
   })
 
+  it('the mobile exit fades the dim out — it must not pop with the DOM', () => {
+    // The card's exit is a scroll the UA times, so only the dim can be declared
+    // here; it fades from the closing state once JS drops its inline per-frame
+    // opacity. The rule must come after the two enter rules it shares (0,3,0) with.
+    const css = base.replace(/\/\*[\s\S]*?\*\//g, '')
+    const mobile = css.slice(css.indexOf('@media (max-width: 767px)'))
+    expect(mobile).toMatch(
+      /\[data-sheet-state='closing'\] \.sv-sheet__backdrop \{\s*opacity: 0;\s*transition: opacity var\(--_sheet-exit\)/,
+    )
+    expect(mobile.indexOf('data-sheet-settled')).toBeLessThan(
+      mobile.indexOf("data-sheet-state='closing'"),
+    )
+  })
+
   it('#8 — the close button has a ≥44px hit target in base.css (works themeless)', () => {
     expect(base).toContain('.sv-sheet__close::before')
     expect(base).toContain('width: max(100%, 44px)')

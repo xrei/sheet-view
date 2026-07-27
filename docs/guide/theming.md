@@ -39,7 +39,7 @@ are the entrance. A sheet with `base.css` alone still slides in correctly.
 | `--sheet-enter-duration`       | `400ms`                          | Mobile card slide-up **and** the dim's fade-in |
 | `--sheet-enter-easing`         | `cubic-bezier(0.32, 0.72, 0, 1)` | The slide-up curve                            |
 | `--sheet-enter-duration-focus` | 75 % of the enter duration       | The shorter `focusOnOpen` rise-in             |
-| `--sheet-exit-duration`        | `250ms`                          | Desktop card exit                             |
+| `--sheet-exit-duration`        | `250ms`                          | Desktop card exit **and** the mobile dim's fade-out |
 | `--sheet-backdrop-duration`    | `250ms`                          | Desktop dim fade                              |
 
 ```css
@@ -47,6 +47,12 @@ are the entrance. A sheet with `base.css` alone still slides in correctly.
   --sheet-enter-duration: 0s; /* no entrance at all */
 }
 ```
+
+On **mobile the exit is a scroll**, not a transition: the snap container glides back
+to its closed point, on a timeline the browser owns. Only the dim is declarable there,
+so it fades over `--sheet-exit-duration` — keep `closeMs` **≥** that, or the sheet is
+removed mid-fade. A drag-close is the exception: it takes the card off the scroller and
+runs card + dim on one `dragCloseMs` timeline.
 
 The card and the dim read the same token, so they can't drift apart. From JS, use the
 core's [`enterMs`](./api#createsheetcore-options) option instead of the token — it

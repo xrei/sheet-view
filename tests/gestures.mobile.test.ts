@@ -109,6 +109,24 @@ describe('gestures (mobile)', () => {
     expect(root.hasAttribute('data-sheet-settled')).toBe(true)
   })
 
+  it('a non-drag close hands the dim back to CSS instead of holding it at full', () => {
+    // The card leaves by scrolling, on a timeline the UA owns — but the dim's
+    // opacity is inline (set per scroll frame) and onScroll stops updating it once
+    // isClosing, so it used to sit at full for the whole closeMs and vanish with the
+    // DOM. Clearing it lets base.css fade it from [data-sheet-state='closing'].
+    core.open({title: 'A', content: () => 'body'})
+    const root = el<HTMLElement>('.sv-sheet')
+    const backdrop = el<HTMLElement>('.sv-sheet__backdrop')
+    const scroll = el<HTMLElement>('.sv-sheet__scroll')
+    settleOpen(scroll, el<HTMLElement>('.sv-sheet__panel'))
+    expect(backdrop.style.opacity).toBe('1') // driven inline while open
+
+    core.getSnapshot()[0]!.handle.close()
+
+    expect(root.dataset['sheetState']).toBe('closing')
+    expect(backdrop.style.opacity).toBe('')
+  })
+
   // Drives a sheet to the open snap point so openDone latches (no 400ms wait).
   const settleOpen = (scroll: HTMLElement, panel: HTMLElement): void => {
     stubOffsetTop(panel, 800)
