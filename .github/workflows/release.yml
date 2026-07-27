@@ -47,3 +47,19 @@ jobs:
       # No NODE_AUTH_TOKEN: npm mints a short-lived token from the OIDC claim.
       # prepack (pnpm build) regenerates dist/ into the tarball.
       - run: npm publish --provenance
+
+  # Separate job so the publish job keeps contents: read — permissions are
+  # granted per job, and only this one needs write access to cut a release.
+  # No environment: the approval already happened upstream in publish.
+  github-release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # No checkout — GH_REPO gives gh its context, and notes are generated
+      # server-side from the commits since the previous tag.
+      - run: gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
