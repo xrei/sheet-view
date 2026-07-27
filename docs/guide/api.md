@@ -71,12 +71,20 @@ needs one stack. The React `sheets` facade is bound to it.
 | -------------- | --------- | --------- | ----------------------------------------------------------------- |
 | `closeMs`      | `number`  | `320`     | Exit budget for a button/backdrop/Escape/programmatic close.      |
 | `dragCloseMs`  | `number`  | `220`     | Exit budget for a drag-close (transform off a frozen scroller).   |
-| `openSettleMs` | `number`  | `400`     | Delay after open before drag-to-close arms.                       |
+| `enterMs`      | `number`  | `400`     | Mobile entrance duration — the JS mirror of `--sheet-enter-duration`. |
+| `openSettleMs` | `number`  | `enterMs` | Delay after open before drag-to-close arms.                       |
 | `breakpoint`   | `number`  | `768`     | Viewport width (px) below which the mobile slide-up layout applies. |
 | `zoomLock`     | `boolean` | `false`   | Pins `maximum-scale=1` while open to block iOS focus zoom. Off by default — a WCAG 1.4.4 trade-off. |
 | `closeLabel`   | `string`  | `'Close'` | Default accessible label for close buttons in this instance.      |
 
-`closeMs` / `dragCloseMs` should be **≥** your theme's exit-transition durations.
+`closeMs` / `dragCloseMs` should be **≥** the exit durations in CSS
+(`--sheet-exit-duration`, `--sheet-backdrop-duration`), or a close is cut short.
+
+`enterMs` retunes the entrance from one number: it writes the private
+`--_sheet-enter-ms` that `--sheet-enter-duration` falls back to, and it defaults
+`openSettleMs` to the same value, so the card slide, the dim fade, and the moment the
+drag arms stay in step. Setting the CSS token instead still wins over `enterMs` —
+see [Theming → Motion](./theming#motion).
 
 ## `open(props)`
 

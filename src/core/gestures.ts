@@ -58,11 +58,16 @@ function unlockDrag(entry: SheetEntry): void {
   entry.scroll.style.overflowY = ''
 }
 
+// The entrance is over: base.css drops the backdrop's enter fade behind this flag
+// so live drag frames set the dim opacity raw (a lingering transition lags it
+// behind the finger). Also set on paths that skip the entrance entirely (desktop,
+// a breakpoint crossing), so no stale transition survives into a drag.
+function markSettled(entry: SheetEntry): void {
+  entry.dialog.dataset['sheetSettled'] = ''
+}
+
 function settleOpen(entry: SheetEntry): void {
-  // Drop the one-shot entrance transition so live drag frames set backdrop opacity
-  // raw (a lingering transition would lag the dim behind the finger). No-op when
-  // the open path never armed it (desktop, reduced motion).
-  entry.backdrop.style.transition = ''
+  markSettled(entry)
   armDragClose(entry)
   if (entry.props.closeDisabled) lockDrag(entry)
 }
@@ -90,6 +95,7 @@ export function watchBreakpoint(entry: SheetEntry, breakpoint: number): () => vo
   const onChange = (e: MediaQueryListEvent): void => {
     if (entry.isClosing) return
     if (e.matches) {
+      markSettled(entry)
       entry.scroll.scrollTop = entry.panel.offsetTop
       entry.backdrop.style.opacity = '1'
       entry.openDone = true
@@ -155,6 +161,7 @@ export function runOpenAnimation(
   openSettleMs: number,
 ): void {
   if (!isMobile()) {
+    markSettled(entry)
     requestAnimationFrame(() => {
       entry.dialog.dataset['sheetState'] = 'open'
     })
@@ -166,20 +173,16 @@ export function runOpenAnimation(
   // the drag-to-close gesture is armed from the first frame, and the card is never
   // parked at scrollTop 0 — a snap container sitting there is a visible modal whose
   // card is scrolled off-screen (the "invisible modal" holding the page). The
-  // visible entrance is a compositor CSS animation (theme.css: slide-up by default,
+  // visible entrance is a compositor CSS animation (base.css: slide-up by default,
   // rise-in for focusOnOpen), NOT a programmatic smooth-scroll. iOS Safari will not
   // animate scrollTo() inside a `scroll-snap-type: mandatory` scroller — it jumps
   // to the target, which popped the card AND the scroll-driven backdrop in one
   // frame (fine in Blink/devtools, abrupt on real iOS).
+  //
+  // Nothing here sets a duration: base.css fades the dim in step with the card for
+  // as long as [data-sheet-settled] is absent, so both read one token and can't
+  // drift apart.
   const reduced = prefersReducedMotion()
-
-  // Resting at the snap point fires one onScroll (progress ≈ 1) that would snap the
-  // backdrop straight to full. A one-shot transition fades it in step with the card
-  // slide instead; settleOpen strips it before real drag frames arrive. Reduced
-  // motion keeps its own short CSS cross-fade — don't arm a JS slide over it.
-  if (!reduced) {
-    entry.backdrop.style.transition = `opacity ${openSettleMs}ms ease`
-  }
   entry.scroll.scrollTop = entry.panel.offsetTop
 
   requestAnimationFrame(() => {

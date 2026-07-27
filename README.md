@@ -84,15 +84,21 @@ Slots accept a `Node`, a `string`, or a `(ctx) => Node | string` factory. Run
 Positioning and the scroll-snap container need real CSS to work, so the styles come
 in two parts:
 
-| Import                  | Required? | What it is                                                        |
-| ----------------------- | --------- | ----------------------------------------------------------------- |
-| `sheet-view/base.css`   | **Yes**   | Structure: layout, scroll-snap, sizing, desktop centering.        |
-| `sheet-view/theme.css`  | No        | The default skin: surface, radius, shadow, backdrop, handle, etc. |
-| `sheet-view/styles.css` | —         | Convenience: `base.css` + `theme.css` in one import.              |
+| Import                  | Required? | What it is                                                             |
+| ----------------------- | --------- | ---------------------------------------------------------------------- |
+| `sheet-view/base.css`   | **Yes**   | Structure + motion: layout, scroll-snap, sizing, desktop centering, the entrance/exit animations. |
+| `sheet-view/theme.css`  | No        | The default skin: surface, radius, shadow, backdrop colour, handle, etc. |
+| `sheet-view/styles.css` | —         | Convenience: `base.css` + `theme.css` in one import.                   |
 
 `base.css` is deliberately **unlayered** so its gesture-critical rules can't be
 overridden by a stray consumer utility class. `theme.css` is wrapped in
 `@layer sheet-view` so your own styles always win.
+
+**Motion is in `base.css`, not the theme** — it's a mechanism, not a skin. The open
+path never animates the scroll (iOS Safari won't animate `scrollTo()` inside a
+mandatory-snap scroller), so the CSS keyframes *are* the entrance: a themeless sheet
+still slides in correctly. Durations are tokens, so you can retune or disable it
+without a specificity fight — `--sheet-enter-duration: 0s`.
 
 > **Next.js Pages Router:** global CSS may only be imported from `pages/_app.js`
 > — import `base.css`/`theme.css` there. The App Router allows importing them
@@ -120,6 +126,10 @@ sheet without touching the file. Overrides apply in both light and dark:
 - **Skin:** `--sheet-title-size`, `--sheet-title-weight`, `--sheet-close-size`,
   `--sheet-close-radius`, `--sheet-handle-radius`, `--sheet-handle-opacity`,
   `--sheet-header-padding`
+- **Motion** (from `base.css`): `--sheet-enter-duration` (`400ms`),
+  `--sheet-enter-easing`, `--sheet-enter-duration-focus` (75 % of the enter
+  duration — the shorter `focusOnOpen` rise), `--sheet-exit-duration` (`250ms`,
+  desktop), `--sheet-backdrop-duration` (`250ms`, desktop dim)
 
 Per **instance**, pass `className` / `style` to `open()`. `style` sets tokens on the
 root, so it reaches every part — including the backdrop, which a card class can't
@@ -158,6 +168,8 @@ own CSS:
 - `[data-sheet-state="opening|open|closing"]` on the root
 - `[data-sheet-size="sm|md|lg|xl"]` on the card
 - `[data-sheet-focus-open]` on the root — present when opened with `focusOnOpen`
+- `[data-sheet-settled]` on the root — set once the entrance is over and the drag is
+  live (that's when the dim stops transitioning and starts tracking the finger)
 - mirrored `.sv-sheet__*` classes, if you prefer class selectors
 
 The docs' anatomy demo colour-codes each of these parts — run `pnpm docs:dev` to
@@ -216,11 +228,14 @@ The top-layer node of the topmost open sheet (or `null`). Portal global overlays
 `createSheets()` (React) and `createSheetCore(options?)` (core) build isolated
 instances. `<SheetHost instance={mySheets} />` and
 `useSheetTopLayer(mySheets)` bind to a specific one. Core options: `closeMs`,
-`dragCloseMs`, `openSettleMs`, `breakpoint`, `zoomLock`, `closeLabel`.
+`dragCloseMs`, `enterMs`, `openSettleMs`, `breakpoint`, `zoomLock`, `closeLabel`.
 
 `closeMs`/`dragCloseMs` are the exit-animation budgets before the DOM is removed —
-keep them **≥** your theme's exit-transition durations (the defaults, 320/220 ms,
-clear the built-in 250 ms desktop transition), or a close will be cut short.
+keep them **≥** the exit durations in CSS (the defaults, 320/220 ms, clear the
+built-in 250 ms desktop transition), or a close will be cut short. `enterMs` is the
+JS-side mirror of `--sheet-enter-duration`: it retunes the mobile entrance *and* the
+`openSettleMs` default (when the drag arms) from one number, so the card and the dim
+can't drift apart. A CSS override of the public token still wins over it.
 `zoomLock` (default `false`) pins `maximum-scale=1` while a sheet is open; leave it
 off — disabling zoom is a WCAG 1.4.4 failure, and the base theme already prevents
 iOS focus-zoom by keeping sheet inputs ≥16 px.

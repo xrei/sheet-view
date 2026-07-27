@@ -16,8 +16,9 @@
  * `prefers-color-scheme` instead — there a light page on a dark OS still darkens.
  *
  * Wrapped in `@layer sheet-view` so your own (unlayered) styles always win —
- * no specificity wars. Structure lives in base.css (required); skip this file
- * entirely to go fully unstyled and bring your own look.
+ * no specificity wars. Structure AND motion live in base.css (required), so a
+ * sheet without this file still slides in correctly — just unskinned. Skip this
+ * file entirely to go fully unstyled and bring your own look.
  *
  * Public tokens (override freely; the set only grows across versions):
  *   colours  --sheet-surface --sheet-text --sheet-handle --sheet-border
@@ -27,8 +28,9 @@
  *   skin     --sheet-title-size --sheet-title-weight --sheet-close-size
  *            --sheet-close-radius --sheet-handle-radius --sheet-handle-opacity
  *            --sheet-header-padding
- * The `--_sheet-*` (underscore) tokens are PRIVATE per-scheme defaults — internal,
- * not part of the public contract; don't set them.
+ * The motion tokens (--sheet-enter-duration, …) are public too, but they belong to
+ * base.css — see its Motion section. The `--_sheet-*` (underscore) tokens are
+ * PRIVATE internals, not part of the public contract; don't set them.
  */
 
 @layer sheet-view {
@@ -144,82 +146,9 @@
     font-size: max(1em, 16px);
   }
 
-  /* Keyboard-safe enter for sheets opened with focusOnOpen. The panel opens
-     already at its resting scroll position (see runOpenAnimation), so the field
-     is on-screen the instant it focuses — no iOS scroll-into-view, no page push.
-     The card can't slide up from below (that would put the field a viewport away
-     at focus time), so it rises + fades into place instead. */
-  @media (max-width: 767px) {
-    .sv-sheet[data-sheet-focus-open] .sv-sheet__card {
-      animation: sv-sheet-rise-in 0.3s ease-out backwards;
-    }
-  }
-
-  @keyframes sv-sheet-rise-in {
-    from {
-      transform: translateY(24px);
-      opacity: 0;
-    }
-    to {
-      transform: none;
-      opacity: 1;
-    }
-  }
-
-  /* Mobile default entrance. The card slides up from below its resting position on
-     a GPU-composited transform — the JS opens the scroller AT the open snap point
-     (drag-armed from frame one) rather than smooth-scrolling to it, because iOS
-     Safari won't animate a programmatic scroll inside a mandatory-snap scroller (it
-     jumps). focusOnOpen is excluded: it plays the smaller rise-in above so an
-     autofocused field never starts a full viewport away from the keyboard. */
-  @media (max-width: 767px) {
-    .sv-sheet:not([data-sheet-focus-open]) .sv-sheet__card {
-      animation: sv-sheet-slide-up 0.4s cubic-bezier(0.32, 0.72, 0, 1) backwards;
-    }
-  }
-
-  @keyframes sv-sheet-slide-up {
-    from {
-      transform: translateY(100%);
-    }
-    to {
-      transform: translateY(0);
-    }
-  }
-
-  @keyframes sv-sheet-fade-in {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-
-  /* Reduce Motion (HIG / WCAG 2.3.3): replace the slide / rise with a cross-fade
-     rather than removing the animation — the sheet still appears, just without the
-     large translate. The JS open path jumps straight to the resting position, so
-     the card only needs to fade in over it. */
+  /* The close button's hover/disabled fade is the one transition that IS skin —
+     it animates themed properties, so it lives with them. */
   @media (prefers-reduced-motion: reduce) {
-    @media (max-width: 767px) {
-      /* Selectors mirror the slide-up / rise-in specificity (both 0,3,0) and come
-         later in source, so this cross-fade wins over them under reduced motion. */
-      .sv-sheet:not([data-sheet-focus-open]) .sv-sheet__card,
-      .sv-sheet[data-sheet-focus-open] .sv-sheet__card {
-        animation: sv-sheet-fade-in 0.2s ease-out both;
-      }
-      .sv-sheet__backdrop {
-        transition: opacity 0.2s ease;
-      }
-    }
-    @media (min-width: 768px) {
-      .sv-sheet__card {
-        transition: opacity 0.2s ease;
-      }
-      .sv-sheet[data-sheet-state='closing'] .sv-sheet__card {
-        transform: none;
-      }
-    }
     .sv-sheet__close {
       transition: none;
     }
@@ -230,7 +159,6 @@
        fade wastes GPU on integrated graphics with a large window. */
     .sv-sheet__backdrop {
       backdrop-filter: none;
-      transition: opacity 0.25s ease;
     }
     .sv-sheet[data-sheet-state='open'] .sv-sheet__backdrop {
       backdrop-filter: blur(var(--sheet-backdrop-blur, 4px));
@@ -238,15 +166,6 @@
     .sv-sheet__card {
       border-radius: var(--sheet-radius-desktop, 16px);
       box-shadow: var(--sheet-shadow, 0 10px 40px rgba(0, 0, 0, 0.2));
-      transform: translateY(0);
-      opacity: 1;
-      transition:
-        transform 0.25s ease,
-        opacity 0.25s ease;
-    }
-    .sv-sheet[data-sheet-state='closing'] .sv-sheet__card {
-      transform: translateY(20px);
-      opacity: 0;
     }
     .sv-sheet__default-header {
       padding: 16px 20px;

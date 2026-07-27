@@ -1,14 +1,16 @@
 /* sheet-view — base.css (REQUIRED)
  *
  * Structural styles the sheet cannot function without: full-viewport dialog,
- * the scroll-snap drag container, snap points, card layout, size variants, and
- * the desktop centering. NO colors, radii, or shadows live here — bring your
- * own skin, or import `sheet-view/theme.css`.
+ * the scroll-snap drag container, snap points, card layout, size variants, the
+ * desktop centering, and the MOTION (see the Motion section at the bottom — the
+ * entrance is a mechanism, not a skin). NO colors, radii, or shadows live here —
+ * bring your own skin, or import `sheet-view/theme.css`.
  *
  * Deliberately UNLAYERED: the gesture-critical rules (scroll-snap, positioning,
- * touch / overscroll behavior) must not lose a specificity battle to a
- * consumer's unlayered utility class (e.g. Tailwind v3), which would silently
- * break dragging. Unlayered here = always wins over layered consumer styles.
+ * touch / overscroll behavior, the entrance keyframes) must not lose a
+ * specificity battle to a consumer's unlayered utility class (e.g. Tailwind v3),
+ * which would silently break dragging. Unlayered here = always wins over layered
+ * consumer styles.
  *
  * Styling API: target `[data-sheet-part="…"]`, `[data-sheet-state="…"]`,
  * `[data-sheet-size="…"]`, or the mirrored `.sv-sheet__*` classes. Both are
@@ -42,7 +44,7 @@
 
 /* In-dialog dim layer. Mobile: opacity driven imperatively per scroll frame,
    coupled to the scroll-snap position. Desktop: toggled by state (below).
-   Colour + blur + transition live in the theme. */
+   Colour + blur live in the theme; the fade timing is in Motion, below. */
 .sv-sheet__backdrop {
   position: absolute;
   inset: 0;
@@ -240,8 +242,146 @@
     width: min(1000px, calc(100vw - 64px));
   }
 
-  /* Desktop dim is toggled by state; colour/blur/transition live in the theme. */
+  /* Desktop dim is toggled by state; colour/blur live in the theme, the fade in
+     Motion below. */
   .sv-sheet[data-sheet-state='open'] .sv-sheet__backdrop {
     opacity: 1;
+  }
+}
+
+/* ── Motion ──────────────────────────────────────────────────────────────────
+ * Here and NOT in the optional theme: the entrance is a mechanism, not a skin.
+ * The JS open path deliberately never animates the scroll (iOS Safari won't
+ * animate scrollTo() inside a `scroll-snap-type: mandatory` scroller — it jumps),
+ * so it parks the scroller AT the open snap point and these keyframes ARE the
+ * entrance. Without them a themeless sheet teleports in while its dim fades, and
+ * the JS timings (closeMs / dragCloseMs / openSettleMs) budget for nothing.
+ * Same argument as scroll-snap above: unlayered, so it can't lose the cascade.
+ *
+ * Every duration is a public token, so motion stays tunable without a specificity
+ * fight — `--sheet-enter-duration: 0s` turns the entrance off. The core's
+ * `enterMs` option mirrors into the PRIVATE `--_sheet-enter-ms` below, so a CSS
+ * override of the public token still wins over it.
+ */
+.sv-sheet {
+  --_sheet-enter: var(--sheet-enter-duration, var(--_sheet-enter-ms, 400ms));
+  --_sheet-enter-easing: var(--sheet-enter-easing, cubic-bezier(0.32, 0.72, 0, 1));
+  /* focusOnOpen travels less (24px, not a viewport), so it defaults to a
+     proportionally shorter rise — still one source of truth. */
+  --_sheet-enter-focus: var(
+    --sheet-enter-duration-focus,
+    calc(var(--_sheet-enter) * 0.75)
+  );
+  --_sheet-exit: var(--sheet-exit-duration, 250ms);
+  --_sheet-backdrop-fade: var(--sheet-backdrop-duration, 250ms);
+}
+
+@keyframes sv-sheet-slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes sv-sheet-rise-in {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@keyframes sv-sheet-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 767px) {
+  /* Default entrance: the card slides up from below its resting position on a
+     GPU-composited transform while the scroller already rests at the open snap
+     point (drag-armed from frame one). */
+  .sv-sheet:not([data-sheet-focus-open]) .sv-sheet__card {
+    animation: sv-sheet-slide-up var(--_sheet-enter) var(--_sheet-enter-easing)
+      backwards;
+  }
+
+  /* Keyboard-safe entrance for focusOnOpen. The field must be on-screen the
+     instant it focuses (no iOS scroll-into-view, no page push), so the card can't
+     start a viewport below — it rises + fades into place instead. */
+  .sv-sheet[data-sheet-focus-open] .sv-sheet__card {
+    animation: sv-sheet-rise-in var(--_sheet-enter-focus) ease-out backwards;
+  }
+
+  /* Resting at the snap point fires one scroll frame that would snap the dim
+     straight to full; fade it in step with the card instead. Dropped once the
+     entrance settles (JS sets [data-sheet-settled]) so live drag frames set
+     opacity raw — a lingering transition lags the dim behind the finger. */
+  .sv-sheet:not([data-sheet-settled]) .sv-sheet__backdrop {
+    transition: opacity var(--_sheet-enter) ease;
+  }
+  /* …and in step with the shorter rise when that's the entrance being played. */
+  .sv-sheet[data-sheet-focus-open]:not([data-sheet-settled]) .sv-sheet__backdrop {
+    transition-duration: var(--_sheet-enter-focus);
+  }
+}
+
+@media (min-width: 768px) {
+  .sv-sheet__backdrop {
+    transition: opacity var(--_sheet-backdrop-fade) ease;
+  }
+  /* Desktop has no drag-to-close, so the exit is a state-driven transition.
+     Both properties start at their initial values (transform: none, opacity: 1),
+     which the closing state below transitions away from. */
+  .sv-sheet__card {
+    transition:
+      transform var(--_sheet-exit) ease,
+      opacity var(--_sheet-exit) ease;
+  }
+  .sv-sheet[data-sheet-state='closing'] .sv-sheet__card {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+}
+
+/* Reduce Motion (HIG / WCAG 2.3.3): replace the slide / rise with a cross-fade
+   rather than removing the animation — the sheet still appears, just without the
+   large translate. Public tokens are still honoured (set them to 0s to go
+   motionless); `enterMs` is deliberately not, so an app's longer flourish can't
+   override the user's preference. */
+@media (prefers-reduced-motion: reduce) {
+  .sv-sheet {
+    --_sheet-enter: var(--sheet-enter-duration, 200ms);
+    /* Both entrances collapse to the same cross-fade here, so the focus variant
+       stops being the shorter one — no 0.75 scaling. */
+    --_sheet-enter-focus: var(--sheet-enter-duration-focus, var(--_sheet-enter));
+    --_sheet-exit: var(--sheet-exit-duration, 200ms);
+    --_sheet-backdrop-fade: var(--sheet-backdrop-duration, 200ms);
+  }
+
+  @media (max-width: 767px) {
+    /* Selectors mirror the slide-up / rise-in specificity (both 0,3,0) and come
+       later in source, so this cross-fade wins over them. */
+    .sv-sheet:not([data-sheet-focus-open]) .sv-sheet__card,
+    .sv-sheet[data-sheet-focus-open] .sv-sheet__card {
+      animation: sv-sheet-fade-in var(--_sheet-enter) ease-out both;
+    }
+    /* The dim needs no rule of its own: the entrance fade above already reads
+       --_sheet-enter (200ms here), and after settle it goes raw so a drag and a
+       drag-close clear it in step with the card instead of fading behind it. */
+  }
+
+  @media (min-width: 768px) {
+    .sv-sheet[data-sheet-state='closing'] .sv-sheet__card {
+      transform: none;
+    }
   }
 }

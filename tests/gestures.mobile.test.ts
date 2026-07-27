@@ -69,27 +69,44 @@ describe('gestures (mobile)', () => {
     expect(scrollTo).not.toHaveBeenCalled()
   })
 
-  it('mobile open fades the backdrop via a one-shot transition, cleared at settle', () => {
-    // No scroll animation runs on open now, so the single onScroll from resting at
-    // the snap point would pop the backdrop to full. A one-shot transition fades it
-    // instead; settleOpen strips it so live drag frames stay raw (no finger lag).
+  it('the backdrop fade is flagged for CSS, not duplicated as an inline duration', () => {
+    // No scroll animation runs on open, so the single onScroll from resting at the
+    // snap point would pop the dim to full. base.css fades it while
+    // [data-sheet-settled] is absent — one token shared with the card slide, so the
+    // two can't drift. JS must not arm a duration of its own (that was the drift).
     vi.useFakeTimers()
     core.open({title: 'A', content: () => 'body'})
+    const root = el<HTMLElement>('.sv-sheet')
     const backdrop = el<HTMLElement>('.sv-sheet__backdrop')
 
-    expect(backdrop.style.transition).toContain('opacity')
-    vi.advanceTimersByTime(600)
     expect(backdrop.style.transition).toBe('')
+    expect(root.hasAttribute('data-sheet-settled')).toBe(false)
+
+    // At settle the flag lands, so live drag frames set the dim opacity raw.
+    vi.advanceTimersByTime(600)
+    expect(root.hasAttribute('data-sheet-settled')).toBe(true)
   })
 
-  it('reduced-motion open leaves the backdrop transition to CSS (no inline slide)', () => {
-    vi.useFakeTimers()
-    mm.setReducedMotion(true)
-    core.open({title: 'A', content: () => 'body'})
-    const backdrop = el<HTMLElement>('.sv-sheet__backdrop')
+  it('enterMs mirrors onto the sheet as the private token base.css reads', () => {
+    // The public --sheet-enter-duration is left alone on purpose: it's read ahead of
+    // this private inline value, so a consumer's CSS override still wins.
+    const slow = createSheetCore({enterMs: 600})
+    slow.open({title: 'A', content: () => 'body'})
+    const root = el<HTMLElement>('.sv-sheet')
 
-    // The reduced-motion CSS block owns the cross-fade; JS must not arm its own.
-    expect(backdrop.style.transition).toBe('')
+    expect(root.style.getPropertyValue('--_sheet-enter-ms')).toBe('600ms')
+    expect(root.style.getPropertyValue('--sheet-enter-duration')).toBe('')
+    slow.__resetForTests()
+  })
+
+  it('a sheet opened on desktop is settled, so a rotation into mobile drags raw', () => {
+    mm.setMobile(false)
+    core.open({title: 'A', content: () => 'body'})
+    const root = el<HTMLElement>('.sv-sheet')
+
+    // No entrance ran, so there is no fade to protect — leaving the flag off would
+    // arm the mobile enter transition on the dim for the rest of the sheet's life.
+    expect(root.hasAttribute('data-sheet-settled')).toBe(true)
   })
 
   // Drives a sheet to the open snap point so openDone latches (no 400ms wait).

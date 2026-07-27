@@ -22,6 +22,41 @@ sheet without touching the file. Overrides apply in both light and dark:
 - **Skin:** `--sheet-title-size`, `--sheet-title-weight`, `--sheet-close-size`,
   `--sheet-close-radius`, `--sheet-handle-radius`, `--sheet-handle-opacity`,
   `--sheet-header-padding`
+- **Motion** (defined in `base.css`): `--sheet-enter-duration`,
+  `--sheet-enter-easing`, `--sheet-enter-duration-focus`, `--sheet-exit-duration`,
+  `--sheet-backdrop-duration`
+
+## Motion
+
+Motion lives in the **required** `base.css`, not in the optional theme — it's a
+mechanism, not a skin. The open path deliberately never animates the scroll (iOS
+Safari won't animate `scrollTo()` inside a `scroll-snap-type: mandatory` scroller —
+it jumps), so the scroller opens *at* its resting snap point and the CSS keyframes
+are the entrance. A sheet with `base.css` alone still slides in correctly.
+
+| Token                          | Default                          | Drives                                        |
+| ------------------------------ | -------------------------------- | --------------------------------------------- |
+| `--sheet-enter-duration`       | `400ms`                          | Mobile card slide-up **and** the dim's fade-in |
+| `--sheet-enter-easing`         | `cubic-bezier(0.32, 0.72, 0, 1)` | The slide-up curve                            |
+| `--sheet-enter-duration-focus` | 75 % of the enter duration       | The shorter `focusOnOpen` rise-in             |
+| `--sheet-exit-duration`        | `250ms`                          | Desktop card exit                             |
+| `--sheet-backdrop-duration`    | `250ms`                          | Desktop dim fade                              |
+
+```css
+:root {
+  --sheet-enter-duration: 0s; /* no entrance at all */
+}
+```
+
+The card and the dim read the same token, so they can't drift apart. From JS, use the
+core's [`enterMs`](./api#createsheetcore-options) option instead of the token — it
+also defaults `openSettleMs` (when the drag arms) to the same number. It's written as
+a private inline fallback, so a CSS override of `--sheet-enter-duration` still wins.
+
+`prefers-reduced-motion: reduce` replaces the slide/rise with a 200 ms cross-fade
+(the sheet still appears — it just doesn't travel). Your token overrides are still
+honoured there; `enterMs` deliberately isn't, so an app can't animate over the user's
+preference.
 
 ## Per-instance overrides
 
@@ -62,6 +97,8 @@ Every part of the sheet DOM carries a stable attribute you can target from your 
 - `[data-sheet-state="opening|open|closing"]` on the root
 - `[data-sheet-size="sm|md|lg|xl"]` on the card
 - `[data-sheet-focus-open]` on the root — present when opened with `focusOnOpen`
+- `[data-sheet-settled]` on the root — set once the entrance is over and the drag is
+  live (when the dim stops transitioning and starts tracking the finger)
 - mirrored `.sv-sheet__*` classes, if you prefer class selectors
 
 ## Stability
