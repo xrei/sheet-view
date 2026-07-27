@@ -1,0 +1,49 @@
+name: Publish to npm
+
+on:
+  push:
+    tags: ['v*']
+
+# id-token is what npm exchanges for a short-lived publish token, and what signs
+# provenance. contents: read is all checkout needs.
+permissions:
+  contents: read
+  id-token: write
+
+# One run per tag; never cancel a run that may be mid-publish.
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    # Forks can't publish — skip rather than leave a failed run in their tab.
+    if: github.repository == 'xrei/sheet-view'
+    runs-on: ubuntu-latest
+    environment:
+      name: release
+      url: https://www.npmjs.com/package/sheet-view
+    steps:
+      # No credentials left in .git/config — the build executes devDependency code.
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      # No cache: a poisoned pnpm store would execute in a job holding id-token.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      # Trusted publishing needs npm >= 11.5.1; don't rely on the runner image.
+      - run: npm i -g npm@latest
+      # The tag is the only version input, but package.json is what gets published.
+      - run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$GITHUB_REF_NAME" != "v$PKG_VERSION" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $PKG_VERSION"
+            exit 1
+          fi
+      - run: pnpm install --frozen-lockfile
+      # No NODE_AUTH_TOKEN: npm mints a short-lived token from the OIDC claim.
+      # prepack (pnpm build) regenerates dist/ into the tarball.
+      - run: npm publish --provenance
