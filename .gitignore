@@ -5,6 +5,7 @@ dist/
 .DS_Store
 coverage/
 .vitest/
+tmp/
 
 # Docs (VitePress build output)
 docs/.vitepress/dist/
