@@ -121,6 +121,30 @@ describe('CSS contract', () => {
     }
   })
 
+  it('the desktop entrance runs card + dim on one token, with no state dependency', () => {
+    // The bug this locks in: the dim used to fade in from
+    // `[data-sheet-state='open']`, which JS sets a frame late, while the card had no
+    // entrance at all — so the card landed a full fade before its dim started.
+    // A transition can't fix that (it needs a before-change style, hence the frame),
+    // so the entrance MUST stay an animation, and both parts must read one token.
+    const css = base.replace(/\/\*[\s\S]*?\*\//g, '')
+    const desktop = css.slice(css.indexOf('@media (min-width: 768px)'))
+    expect(desktop).toMatch(
+      /\.sv-sheet__card,\s*\.sv-sheet__backdrop \{\s*animation: sv-sheet-fade-in var\(--_sheet-backdrop-fade\)/,
+    )
+    // No opacity rule may key the desktop dim off the open state again.
+    expect(base).not.toMatch(/data-sheet-state='open'[^}]*opacity/)
+    // It rests visible instead, so the entrance is the animation and nothing else.
+    expect(desktop).toMatch(/\.sv-sheet__backdrop \{\s*opacity: 1;/)
+    // Both parts still leave on the state-driven exit.
+    expect(desktop).toMatch(
+      /\[data-sheet-state='closing'\] \.sv-sheet__backdrop \{\s*opacity: 0;/,
+    )
+    expect(desktop).toMatch(
+      /\[data-sheet-state='closing'\] \.sv-sheet__card \{\s*transform: translateY\(20px\);/,
+    )
+  })
+
   it('the mobile exit fades the dim out — it must not pop with the DOM', () => {
     // The card's exit is a scroll the UA times, so only the dim can be declared
     // here; it fades from the closing state once JS drops its inline per-frame
@@ -184,6 +208,15 @@ describe('CSS contract', () => {
     expect(css).toMatch(/\.sv-sheet__icon:empty\s*\{\s*display: none/)
     expect(css).toMatch(/\.sv-sheet__icon\s*\{[^}]*flex-shrink: 0/)
     expect(css).toContain('gap: var(--_sheet-header-gap);')
+  })
+
+  it('the default × is CSS-generated on the empty close glyph, not JS text', () => {
+    // This rule IS the default close glyph. If it is deleted or moved to a layer a
+    // consumer can beat, every themeless sheet gets a blank close button — and the
+    // core deliberately writes no text into that node, so nothing else covers it.
+    const css = base.replace(/\/\*[\s\S]*?\*\//g, '')
+    expect(css).toMatch(/\.sv-sheet__close-icon:empty::before\s*\{\s*content: '×'/)
+    expect(css).toMatch(/\.sv-sheet__close-icon\s*\{[^}]*display: inline-flex/)
   })
 
   it('#8 — the close button has a ≥44px hit target in base.css (works themeless)', () => {

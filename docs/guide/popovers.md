@@ -19,7 +19,7 @@ changes that.
 Your own popovers are DOM you control, so you get to choose. The library gives you the
 nodes to choose from. (The case a page genuinely cannot fix is UI it does *not* own, such
 as a password manager's injected autofill — see
-[third-party overlays](./api#notes-known-limitations).)
+[third-party overlays](./api#notes-limitations).)
 
 ## Choosing a layer
 
@@ -120,8 +120,7 @@ and while the sheet animates.
 ::: tip Consequence
 The card is therefore also a *backdrop root*: a `backdrop-filter` on an element inside
 the card samples only what is painted inside the card, not the page behind the sheet.
-(This was already true whenever the card was animating.) The sheet's own dim is outside
-the card and unaffected.
+The sheet's own dim is outside the card and unaffected.
 :::
 
 ## Dismissal
@@ -154,10 +153,11 @@ and flipping the target mid-exit would reparent your content and restart its ani
 Ask `useSheetLayout().isClosing` for the second question, or let `<SheetPortal>` handle it
 (it unmounts on close unless you pass `keepOnClose`).
 
-`useSheetTopLayer()` still returns the raw top-layer node, unchanged. Prefer
-`useSheetPortalTarget({layer: 'viewport'})`: the raw node is `pointer-events: none`, so
-anything you portal in has to re-arm pointer events on the panel itself — and a full-bleed
-wrapper that does it wrongly disables drag-to-close.
+Below `<SheetPortal>` and `useSheetPortalTarget()` sits the raw top-layer node,
+`useSheetLayout().slots.toplayer` (`handle.slots.toplayer` in vanilla). You
+almost certainly don't want it: it is `pointer-events: none`, so anything you portal in has
+to re-arm pointer events on the panel itself, and a full-bleed wrapper that does it wrongly
+disables drag-to-close. `layers.viewport` exists to spare you exactly that.
 
 ## Vanilla
 
@@ -166,7 +166,7 @@ Everything above is core, not React. `open()`'s handle carries the same nodes:
 ```js
 const sheet = sheets.open({title: 'Sort'})
 sheet.layers.anchored.append(panel) // panel must be position: absolute
-sheet.layers.viewport.append(toast) // panel must be position: fixed
+sheet.layers.viewport.append(toast) // toast must be position: fixed
 
 sheet.phase() // 'entering' | 'settled' | 'closing'
 const off = sheet.onPhase((phase) => {

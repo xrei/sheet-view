@@ -137,7 +137,7 @@ sheet without touching the file. Overrides apply in both light and dark:
   `--sheet-enter-easing`, `--sheet-enter-duration-focus` (75 % of the enter
   duration — the shorter `focusOnOpen` rise), `--sheet-exit-duration` (`250ms` —
   the desktop card exit and the mobile dim's fade-out),
-  `--sheet-backdrop-duration` (`250ms`, desktop dim)
+  `--sheet-backdrop-duration` (`250ms`, desktop entrance — card and dim together)
 
 Per **instance**, pass `className` / `style` to `open()`. `style` sets tokens on the
 root, so it reaches every part — including the backdrop, which a card class can't
@@ -172,7 +172,7 @@ inherits `color-scheme` from your root and resolves its palette against it:
 Every part of the sheet DOM carries a stable attribute you can target from your
 own CSS:
 
-- `[data-sheet-part="root|backdrop|scroll|spacer|panel|card|handle|header|content|footer|overlay|anchor-layer|toplayer|viewport-layer|default-header|icon|title|close"]`
+- `[data-sheet-part="root|backdrop|scroll|spacer|panel|card|handle|header|content|footer|overlay|anchor-layer|toplayer|viewport-layer|default-header|icon|title|close|close-icon"]`
 - `[data-sheet-state="opening|open|closing"]` on the root
 - `[data-sheet-size="sm|md|lg|xl"]` on the card
 - `[data-sheet-focus-open]` on the root — present when opened with `focusOnOpen`
@@ -203,7 +203,7 @@ see it.
 | `closeDisabled`                 | `boolean`                                  | Blocks X / backdrop / Escape / drag; fires `onCloseAttempt`. |
 | `closeHidden`                   | `boolean`                                  | Omits the default-header close button.                       |
 | `closeLabel`                    | `string`                                   | Accessible label for the close button. Default `'Close'`.    |
-| `closeIcon`                     | `Node \| string \| (ctx) => Node \| string` | Custom glyph in place of `×`; the a11y name stays `closeLabel`. Core-shaped, **not** `ReactNode` — for a JSX glyph use `icon` or `headerSlot`. |
+| `closeIcon`                     | `ReactNode \| (ctx) => ReactNode`          | Glyph inside the close button, in place of `×`. The button stays ours — label, `aria-disabled` and 44×44 hit target included. Requires `title`; ignored with `headerSlot` or `closeHidden`. |
 | `ariaLabel`                     | `string`                                   | Accessible name. Without it a `title` labels the dialog — via `aria-labelledby` for the default header, or as `aria-label` when `headerSlot` owns the row. |
 | `cardClassName`                 | `string`                                   | Extra classes on the card.                                   |
 | `className`                     | `string`                                   | Class(es) on the **root** dialog.                            |
@@ -250,18 +250,13 @@ ships no positioning — your floating-ui / Popper / Radix code keeps working.
 Full contract, the positioning rules and the paint-order guarantee:
 **[Popovers](https://xrei.github.io/sheet-view/guide/popovers)**.
 
-### `useSheetTopLayer(instance?)` → `HTMLElement | null`
-
-The raw top-layer node of the topmost open sheet (or `null`). Prefer
-`useSheetPortalTarget({layer: 'viewport'})`: this node is `pointer-events: none`, so
-anything you portal in must re-arm pointer events on the panel itself — and a
-full-bleed wrapper that does it wrongly disables drag-to-close.
-
 ### Multiple instances
 
 `createSheets()` (React) and `createSheetCore(options?)` (core) build isolated
-instances. `<SheetHost instance={mySheets} />` and
-`useSheetTopLayer(mySheets)` bind to a specific one. Core options: `closeMs`,
+instances. `<SheetHost instance={mySheets} />`, `<SheetPortal instance={mySheets}>`
+and `useSheetPortalTarget({instance: mySheets})` bind to a specific one — the last
+two only matter outside a slot, since inside one the sheet is known from context.
+Core options: `closeMs`,
 `dragCloseMs`, `enterMs`, `openSettleMs`, `breakpoint`, `zoomLock`, `closeLabel`.
 
 `closeMs`/`dragCloseMs` are the exit-animation budgets before the DOM is removed —
@@ -339,12 +334,12 @@ If you'd rather press Escape in tests, opt in with
 - **`strategy: 'replace'`.** The replaced sheet closes silently — `onExited` fires,
   `onClose` does not. A native close (a `<form method="dialog">` submit, or a
   browser force-close) tears down cleanly and fires both.
-- **The raw top layer is `pointer-events: none`.** Interactive children portaled
-  into it via `useSheetTopLayer()` must set `pointer-events: auto` **on the panel
-  itself** — a full-bleed wrapper that does it swallows backdrop-dismiss and
-  drag-to-close. `<SheetPortal layer="viewport">` handles this for you.
-  (`overlaySlot` is not affected: it is `display: contents` and its children are
-  interactive as-is.)
+- **The raw top layer is `pointer-events: none`.** Only reachable if you go around
+  the mount points and append to `slots.toplayer` yourself; children there must set
+  `pointer-events: auto` **on the panel itself** — a full-bleed wrapper that does it
+  swallows backdrop-dismiss and drag-to-close. `<SheetPortal layer="viewport">` and
+  `layers.viewport` handle this for you. (`overlaySlot` is not affected: it is
+  `display: contents` and its children are interactive as-is.)
 - **A slot that throws is contained to that slot.** It renders nothing and logs to
   `console.error`; the sheet and the rest of your app stay mounted, so the default
   header's close button still works. The slot stays blank until the sheet closes —

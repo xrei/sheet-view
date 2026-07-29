@@ -51,12 +51,12 @@ export interface DefaultHeaderOptions {
    * renderer's portal would keep writing into the detached previous one.
    */
   icon: HTMLElement
+  /** The stable close-glyph node from `SheetSlots` — moved here, like `icon`. */
+  closeIcon: HTMLElement
   onClose: () => void
   closeMuted: boolean
   closeHidden: boolean
   closeLabel: string
-  closeIcon?: SheetSlot | undefined
-  ctx: SheetContext
 }
 
 export function buildDefaultHeader(opts: DefaultHeaderOptions): HTMLElement {
@@ -73,15 +73,13 @@ export function buildDefaultHeader(opts: DefaultHeaderOptions): HTMLElement {
       type: 'button',
       'aria-label': opts.closeLabel,
       'data-sheet-part': 'close',
-      'data-sheet-close': '',
       ...(opts.closeMuted ? {'aria-disabled': 'true'} : {}),
     })
-    // A custom glyph (node/SVG/string) replaces the default ×; the button keeps
-    // its aria-label, so the accessible name is unchanged.
-    const glyph =
-      opts.closeIcon != null ? resolveSlot(opts.closeIcon, opts.ctx) : null
-    if (glyph) closeBtn.append(glyph)
-    else closeBtn.textContent = '×'
+    // The glyph is a moved node, never text set here: the default × comes from
+    // `.sv-sheet__close-icon:empty::before`, so it yields to a consumer node or a
+    // React commit with no coordination and no window where both are visible.
+    // The button keeps its aria-label either way, so the name never changes.
+    closeBtn.append(opts.closeIcon)
     closeBtn.addEventListener('click', () => opts.onClose())
     header.append(closeBtn)
   }
@@ -156,6 +154,11 @@ export function buildSheetDOM(props: SheetOpenProps): SheetDOM {
   // rebuild. It enters the DOM only when a default header is mounted, and
   // `.sv-sheet__icon:empty` collapses it until something fills it.
   const icon = createEl('span', 'sv-sheet__icon', {'data-sheet-part': 'icon'})
+  // Same deal for the close glyph — stable identity, moved into each rebuilt
+  // button. Must be created EMPTY: `:empty::before` is what paints the default ×.
+  const closeIcon = createEl('span', 'sv-sheet__close-icon', {
+    'data-sheet-part': 'close-icon',
+  })
   const content = createEl('div', 'sv-sheet__content', {
     'data-sheet-part': 'content',
     'data-scrollable': 'true',
@@ -193,7 +196,7 @@ export function buildSheetDOM(props: SheetOpenProps): SheetDOM {
     closedSpacer,
     panel,
     card,
-    slots: {header, icon, content, footer, overlay, toplayer},
+    slots: {header, icon, closeIcon, content, footer, overlay, toplayer},
     layers: {anchored: anchorLayer, viewport: viewportLayer},
   }
 }

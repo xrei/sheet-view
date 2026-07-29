@@ -109,12 +109,11 @@ export function createSheetCore(options: SheetCoreOptions = {}): SheetCore {
             buildDefaultHeader({
               title: props.title ?? '',
               icon: slots.icon,
+              closeIcon: slots.closeIcon,
               onClose: () => requestClose(entry),
               closeMuted: !!props.closeDisabled && !props.onCloseAttempt,
               closeHidden: !!props.closeHidden,
               closeLabel: props.closeLabel ?? defaultCloseLabel,
-              closeIcon: props.closeIcon,
-              ctx,
             })
         : undefined,
     )
@@ -126,6 +125,7 @@ export function createSheetCore(options: SheetCoreOptions = {}): SheetCore {
       slots.header.querySelector('[data-sheet-part="default-header"]')?.remove()
     }
     mountSlot(slots.icon, props.icon, ctx)
+    mountSlot(slots.closeIcon, props.closeIcon, ctx)
     mountSlot(slots.content, props.content, ctx)
     mountSlot(slots.footer, props.footer, ctx)
     mountSlot(slots.overlay, props.overlaySlot, ctx)
@@ -308,12 +308,26 @@ export function createSheetCore(options: SheetCoreOptions = {}): SheetCore {
     entry.rootStyleKeys = applyRootStyle(entry.dialog, props.style)
     mountSlots(entry)
     syncDialogLabel(entry)
-    // The icon lives in the default header, and no `title` means no default header
-    // at all — so the icon would silently render nowhere.
-    if (props.icon != null && props.title == null && props.headerSlot == null) {
-      devWarn(
-        '`icon` was ignored: it renders in the default header, which only exists when `title` is set.',
-      )
+    // Both glyphs live in the default header, and no `title` means no default
+    // header at all — so they would silently render nowhere. `closeIcon` has a
+    // second way to be orphaned: `closeHidden` builds the row without a button.
+    if (props.headerSlot == null) {
+      if (props.icon != null && props.title == null) {
+        devWarn(
+          '`icon` was ignored: it renders in the default header, which only exists when `title` is set.',
+        )
+      }
+      if (props.closeIcon != null) {
+        if (props.title == null) {
+          devWarn(
+            '`closeIcon` was ignored: it renders in the default header, which only exists when `title` is set.',
+          )
+        } else if (props.closeHidden) {
+          devWarn(
+            '`closeIcon` was ignored: `closeHidden` removes the close button it would fill.',
+          )
+        }
+      }
     }
     scrollLock.acquire()
     if (useZoomLock) zoomLock.acquire()

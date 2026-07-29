@@ -9,7 +9,6 @@ export type {
 } from './react/sheets'
 export {SheetHost} from './react/SheetHost'
 export type {SheetHostProps, SheetSlotErrorHandler} from './react/SheetHost'
-export {useSheetTopLayer} from './react/useSheetTopLayer'
 
 export {SheetLayoutContext} from './react/SheetLayoutContext'
 export type {SheetLayoutValue} from './react/SheetLayoutContext'

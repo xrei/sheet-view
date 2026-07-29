@@ -233,6 +233,24 @@ describe('gestures (mobile)', () => {
     desktop.__resetForTests()
   })
 
+  it("desktop: 'open' lands a frame late — why the entrance can't be a transition", () => {
+    // The fact base.css depends on. The state attribute is stamped in a rAF (it has
+    // to be: the same-tick-close guard above needs the deferral), so anything keyed
+    // off [data-sheet-state='open'] cannot start until frame two. That is why the
+    // desktop entrance is an ANIMATION on both card and dim instead — a transition
+    // from the open state made the card land a whole fade ahead of the backdrop.
+    vi.useFakeTimers()
+    mm.setMobile(false)
+    const desktop = createSheetCore()
+    desktop.open({title: 'A', content: () => 'body'})
+    const root = el<HTMLElement>('.sv-sheet')
+
+    expect(root.dataset['sheetState']).toBe('opening')
+    vi.advanceTimersByTime(50)
+    expect(root.dataset['sheetState']).toBe('open')
+    desktop.__resetForTests()
+  })
+
   it('#5 — a sheet caught mid-open and dragged back down dismisses (no invisible modal)', () => {
     core.open({title: 'A', content: () => 'body'})
     const scroll = el<HTMLElement>('.sv-sheet__scroll')

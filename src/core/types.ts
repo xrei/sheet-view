@@ -65,8 +65,10 @@ export interface SheetOpenProps {
   closeLabel?: string
   /**
    * Content of the default-header close button — a custom node / SVG / string in
-   * place of the default `×`. The button's accessible name still comes from
-   * `closeLabel`. For a fully custom header (or a React/JSX icon), use `headerSlot`.
+   * place of the default `×`, which the CSS drops as soon as this lands. The
+   * button itself stays library-owned: its accessible name still comes from
+   * `closeLabel`, as do its `aria-disabled` state and its 44×44 hit target.
+   * Ignored when `headerSlot` or `closeHidden` is set (no button to fill).
    */
   closeIcon?: SheetSlot
   /** Replaces the default title/close header row. */
@@ -129,6 +131,12 @@ export interface SheetSlots {
    * external renderer can portal into it and keep rendering there.
    */
   icon: HTMLElement
+  /**
+   * Glyph node inside the default header's close button. Created once and MOVED,
+   * exactly like `icon`, so a portal into it survives `update()`. Left empty,
+   * CSS fills it with the default `×`.
+   */
+  closeIcon: HTMLElement
   content: HTMLElement
   footer: HTMLElement
   overlay: HTMLElement

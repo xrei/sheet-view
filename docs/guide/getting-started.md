@@ -47,7 +47,6 @@ widens slots to `ReactNode` — `sheets` is ready to use over the shared core, a
 | `<SheetPortal/>` | `sheet-view/react` | mounts popovers (dropdowns, toasts) in the right layer |
 | `useSheetLayout()` | `sheet-view/react` | this sheet's card / scrollers / layers / motion phase |
 | `useSheetPortalTarget()` | `sheet-view/react` | the node to portal into — never `null` |
-| `useSheetTopLayer()` | `sheet-view/react` | the raw top-layer node; superseded by `useSheetPortalTarget` |
 | `installDialogShim()` | `sheet-view/testing` | makes `<dialog>` work under jsdom, for tests |
 
 ## Vanilla
@@ -90,8 +89,9 @@ export function App() {
 }
 ```
 
-Slots widen to `ReactNode`; everything else (`title`, `size`, `closeLabel`, …) is the
-same as the vanilla core.
+All six slots — `headerSlot`, `icon`, `closeIcon`, `content`, `footer`, `overlaySlot` —
+widen to `ReactNode`. Everything else (`title`, `size`, `closeLabel`, …) is the same as
+the vanilla core.
 
 ## Isolated instances
 

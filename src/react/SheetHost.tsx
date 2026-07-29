@@ -115,9 +115,11 @@ function SheetPortals({
   return (
     <SheetLayoutContext.Provider value={layout}>
       {portal('headerSlot', fns.headerSlot, slots.header)}
-      {/* A custom header owns the whole row, so the icon has nowhere to go —
+      {/* A custom header owns the whole row, so neither glyph has anywhere to go —
           same rule the core applies to `title`. */}
       {fns.headerSlot == null && portal('icon', fns.icon, slots.icon)}
+      {fns.headerSlot == null &&
+        portal('closeIcon', fns.closeIcon, slots.closeIcon)}
       {portal('content', fns.content, slots.content)}
       {portal('footer', fns.footer, slots.footer)}
       {portal('overlaySlot', fns.overlaySlot, slots.overlay)}

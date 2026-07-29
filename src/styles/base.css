@@ -98,8 +98,9 @@
    it is the offsetParent that `layers.anchored` children position against.
    `isolation: isolate` makes the card a stacking context at rest, so a consumer
    z-index inside a slot can never cross a sheet-part boundary — and, crucially,
-   behaves the same at rest as it does mid-animation (a live transform already
-   made the card a stacking context, so order used to invert for 400ms). */
+   behaves the same at rest as it does mid-animation (a live transform makes the
+   card a stacking context on its own; without this, paint order would flip for
+   the duration of the entrance). */
 .sv-sheet__card {
   position: relative;
   isolation: isolate;
@@ -246,7 +247,7 @@
 }
 
 /* Viewport-anchored overlays — toasts, palettes. Re-arms pointer events for its
-   children, so consumers no longer hand-write `pointer-events: auto` per panel. */
+   children, so a panel mounted here doesn't have to do it itself. */
 .sv-sheet__viewport-layer {
   display: contents;
   pointer-events: auto;
@@ -316,6 +317,21 @@
 .sv-sheet__close[aria-disabled='true'] {
   cursor: not-allowed;
 }
+/* Close glyph — a stable node the consumer fills, mirroring `.sv-sheet__icon`.
+   The default × lives HERE rather than in JS so it yields the instant anything
+   lands in the node — a vanilla Node, a string, or a React commit — with no
+   core↔adapter coordination and no frame where both glyphs show. It also means
+   `mountSlot`'s zero-length text node must stay zero-length: per Selectors 3,
+   empty text nodes don't affect `:empty`, which is what keeps the × as the
+   fallback when a slot resolves to nothing. Sized by the button's font-size. */
+.sv-sheet__close-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.sv-sheet__close-icon:empty::before {
+  content: '×';
+}
 
 /* Desktop — centered card, no scroll-snap drag-to-close */
 @media (min-width: 768px) {
@@ -353,12 +369,6 @@
   }
   .sv-sheet__card[data-sheet-size='xl'] {
     width: min(var(--_sheet-width-xl), var(--_sheet-max-width));
-  }
-
-  /* Desktop dim is toggled by state; colour/blur live in the theme, the fade in
-     Motion below. */
-  .sv-sheet[data-sheet-state='open'] .sv-sheet__backdrop {
-    opacity: 1;
   }
 }
 
@@ -460,12 +470,27 @@
 }
 
 @media (min-width: 768px) {
+  /* Entrance. Card and dim cross-fade on ONE token, both starting at the element's
+     first style resolution — the same "one timeline" contract mobile has above.
+     It has to be an ANIMATION, not a state-driven transition: a transition needs a
+     before-change style, so it cannot begin until the frame after JS flips
+     `data-sheet-state` to 'open'. Driving the dim that way (and leaving the card
+     with no entrance at all) is what made the card land a whole fade ahead of it.
+     A cross-fade rather than a rise also means reduced-motion needs no override —
+     this already IS the reduced form, on the shorter token from the block below. */
+  .sv-sheet__card,
   .sv-sheet__backdrop {
+    animation: sv-sheet-fade-in var(--_sheet-backdrop-fade) ease backwards;
+  }
+  /* Desktop dim rests visible, so nothing about the entrance depends on the state
+     attribute. Colour and blur still live in the theme. */
+  .sv-sheet__backdrop {
+    opacity: 1;
     transition: opacity var(--_sheet-backdrop-fade) ease;
   }
-  /* Desktop has no drag-to-close, so the exit is a state-driven transition.
-     Both properties start at their initial values (transform: none, opacity: 1),
-     which the closing state below transitions away from. */
+  /* Exit. No drag-to-close here, so it is state-driven. Transitions outrank
+     animations in the cascade, which is what lets these win over a still-running
+     entrance when a sheet is closed mid-fade. */
   .sv-sheet__card {
     transition:
       transform var(--_sheet-exit) ease,
@@ -473,6 +498,9 @@
   }
   .sv-sheet[data-sheet-state='closing'] .sv-sheet__card {
     transform: translateY(20px);
+    opacity: 0;
+  }
+  .sv-sheet[data-sheet-state='closing'] .sv-sheet__backdrop {
     opacity: 0;
   }
 }

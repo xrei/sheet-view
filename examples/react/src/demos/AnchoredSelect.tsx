@@ -94,10 +94,10 @@ function SortSelect() {
                 className="demo-option"
                 data-selected={opt === value || undefined}
                 onClick={() => {
-                  // This unmounts the panel mid-click. Two things used to break
-                  // here: the press was "outside the card" so it tore the whole
-                  // sheet down, and the detached target made the click look like
-                  // an outside click.
+                  // This unmounts the panel mid-click — the case worth demoing.
+                  // The press is inside the card, so it never dismisses the
+                  // sheet, and the dismiss decision is taken on pointerdown, so
+                  // the target being detached by click time changes nothing.
                   setValue(opt)
                   setOpen(false)
                 }}

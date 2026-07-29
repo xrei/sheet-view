@@ -71,7 +71,9 @@ The default header expands to `icon` + `title` + close:
 <div data-sheet-part="default-header">
   <span data-sheet-part="icon">…</span>  <!-- your `icon`, collapsed while empty -->
   <h2 data-sheet-part="title">…</h2>
-  <button data-sheet-part="close">×</button>
+  <button data-sheet-part="close" aria-label="Close">
+    <span data-sheet-part="close-icon">…</span>  <!-- your `closeIcon`; × while empty -->
+  </button>
 </div>
 ```
 
@@ -119,7 +121,7 @@ Returns a stable `SheetHandle`. All props are optional.
 | `focusOnOpen`   | `boolean`               | Autofocus a field; keyboard-safe entrance on mobile.        |
 | `ariaLabel`     | `string`                | Accessible name. Without it the `title` names the dialog — via `aria-labelledby` for the default header, or as `aria-label` when `headerSlot` owns the row. |
 | `closeLabel`    | `string`                | Accessible label for the close button. Default `'Close'`.   |
-| `closeIcon`     | `SheetSlot`             | Custom glyph/SVG in place of `×` (a11y name stays `closeLabel`). |
+| `closeIcon`     | `SheetSlot`             | Glyph inside the close button, in place of the default `×`. The button stays library-owned — its name still comes from `closeLabel`. |
 | `closeDisabled` | `boolean`               | Blocks X/backdrop/Escape/drag; fires `onCloseAttempt`.      |
 | `closeHidden`   | `boolean`               | Omits the default close button (a forced sheet).            |
 | `cardClassName` | `string`                | Class(es) on the card element.                              |
@@ -141,7 +143,7 @@ interface SheetHandle {
   id: number
   close: () => void
   update: (next: Partial<SheetOpenProps>) => void // merges next props into the live sheet
-  slots: {header; icon; content; footer; overlay; toplayer} // DOM nodes to portal into
+  slots: {header; icon; closeIcon; content; footer; overlay; toplayer} // nodes to portal into
   layers: {anchored; viewport} // mount points for dropdowns / toasts
   phase: () => 'entering' | 'settled' | 'closing'
   onPhase: (listener: (phase) => void) => () => void // change-only; returns an unsubscribe
@@ -158,7 +160,7 @@ viewport-coordinate measurements are stable. See [Popovers](./popovers).
 Router app as-is.
 
 ```ts
-import {SheetHost, sheets, createSheets, useSheetTopLayer} from 'sheet-view/react'
+import {SheetHost, SheetPortal, sheets, createSheets} from 'sheet-view/react'
 ```
 
 | Export                | What it is                                                        |
@@ -169,7 +171,6 @@ import {SheetHost, sheets, createSheets, useSheetTopLayer} from 'sheet-view/reac
 | `<SheetPortal/>`      | mount popovers (dropdowns, toasts) in the right layer.         |
 | `useSheetLayout()`    | this sheet's card / scrollers / layers / motion phase.            |
 | `useSheetPortalTarget()` | the node to portal into — never `null`. For `container=` props. |
-| `useSheetTopLayer()`  | the raw `toplayer` node. Superseded by `useSheetPortalTarget`.     |
 
 ### `sheets` / `createSheets(core?)` → `Sheets`
 
@@ -216,13 +217,6 @@ positioning stays yours, so your floating-ui / Popper / Radix code keeps working
 
 Full contract, positioning rules and pitfalls: **[Popovers](./popovers)**.
 
-### `useSheetTopLayer(instance?)` → `HTMLElement | null`
-
-The raw `toplayer` node of the topmost open sheet, or `null` when none is open. Prefer
-`useSheetPortalTarget({layer: 'viewport'})`: this node is `pointer-events: none`, so
-anything portaled in must re-arm pointer events **on the panel itself** — a full-bleed
-wrapper that does it disables drag-to-close.
-
 ### React specifics
 
 - **`title` with a custom `headerSlot`.** Passing `headerSlot` makes the adapter drop
@@ -231,11 +225,11 @@ wrapper that does it disables drag-to-close.
   the dialog's `aria-label`, so the sheet still has an accessible name. Keep it
   matching the heading you render, or pass `ariaLabel` — a visible name that differs
   from the accessible one is a WCAG 2.5.3 (label in name) failure.
-- **Wanting only an icon?** Use `icon`, not `headerSlot`. `headerSlot` costs you the
-  close button too — its label, its `aria-disabled` behaviour and its 44×44 hit target
-  all become yours to rebuild.
-- **`'aria-label'`** is a deprecated alias for `ariaLabel`, kept only for parity. Use
-  `ariaLabel`.
+- **Wanting only a glyph?** Use `icon` for a leading one and `closeIcon` for the close
+  button — both take `ReactNode`, so a `lucide-react` / FontAwesome component goes
+  straight in. Reach for `headerSlot` only to replace the row itself: it costs you the
+  close button too, and its label, its `aria-disabled` behaviour and its 44×44 hit
+  target all become yours to rebuild.
 
 ## Testing
 
@@ -318,10 +312,11 @@ stays frozen for the rest of the file.
 - **`strategy: 'replace'`.** The replaced sheet closes silently — `onExited` fires,
   `onClose` does not. A native close (a `<form method="dialog">` submit, or a browser
   force-close) tears down cleanly and fires both.
-- **The raw top layer is `pointer-events: none`.** Children portaled in via
-  `useSheetTopLayer()` must re-arm pointer events **on the panel itself** — a
-  full-bleed wrapper that does it swallows backdrop-dismiss and drag-to-close.
-  `<SheetPortal layer="viewport">` handles it. (`overlaySlot` is unaffected: it is
+- **The raw top layer is `pointer-events: none`.** Only reachable if you bypass the
+  mount points and append to `slots.toplayer` yourself; children there must re-arm
+  pointer events **on the panel itself** — a full-bleed wrapper that does it swallows
+  backdrop-dismiss and drag-to-close. `<SheetPortal layer="viewport">` and
+  `layers.viewport` handle it. (`overlaySlot` is unaffected: it is
   `display: contents`, and its children are interactive as-is.)
 - **A slot that throws is contained to that slot.** It renders nothing and logs to
   `console.error`; the sheet and your app stay mounted. The slot stays blank until the

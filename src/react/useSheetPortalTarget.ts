@@ -26,9 +26,9 @@ export interface SheetPortalTargetOptions {
  * Resolution order: this sheet (from context) → the topmost sheet of `instance`
  * → `document.body`. It never returns null, so callers write no fallback.
  *
- * Unlike `useSheetTopLayer`, a closing sheet still resolves to its own node:
- * "which node" and "should I still render" are separate questions, and flipping
- * the target mid-exit reparents the content, restarting its animations. Ask
+ * A *closing* sheet deliberately still resolves to its own node: "which node" and
+ * "should I still render" are separate questions, and flipping the target mid-exit
+ * reparents the content, restarting its animations. Ask
  * `useSheetLayout().isClosing` for the second question, or let `<SheetPortal>`
  * handle it.
  *

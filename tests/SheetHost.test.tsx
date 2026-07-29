@@ -165,6 +165,53 @@ describe('SheetHost', () => {
     expect(screen.getByText('Custom header')).toBeInTheDocument()
   })
 
+  it('a JSX closeIcon fills the close button and keeps the whole default header', () => {
+    // The gap this closes: a JSX close glyph used to force headerSlot, which costs
+    // the button's label, its aria-disabled state and its 44×44 hit target.
+    open({
+      title: 'Filters',
+      closeIcon: () => <svg data-testid="x-glyph" />,
+      content: () => <p>Body</p>,
+    })
+    const btn = screen.getByLabelText('Close')
+    const glyph = document.querySelector('[data-sheet-part="close-icon"]')!
+    expect(btn.contains(glyph)).toBe(true)
+    expect(glyph.querySelector('[data-testid="x-glyph"]')).not.toBeNull()
+    // Everything else in the row survives — that is the point of not using headerSlot.
+    expect(screen.getByText('Filters')).toBeInTheDocument()
+    expect(document.querySelector('[data-sheet-part="default-header"]')).not.toBeNull()
+  })
+
+  it('the close glyph node keeps its identity across update()', () => {
+    // Same load-bearing invariant as the icon node above: the header row is rebuilt
+    // on every update(), so this node must be MOVED into it, never created there.
+    const handle = open({
+      title: 'A',
+      closeIcon: () => <span>✕</span>,
+      content: () => <p>Body</p>,
+    })
+    const before = document.querySelector('[data-sheet-part="close-icon"]')
+
+    act(() => {
+      handle.update({title: 'B'})
+    })
+
+    expect(document.querySelector('[data-sheet-part="close-icon"]')).toBe(before)
+    expect(screen.getByText('✕')).toBeInTheDocument()
+    expect(screen.getByLabelText('Close')).toBeInTheDocument()
+  })
+
+  it('closeIcon is ignored when headerSlot takes over the row', () => {
+    open({
+      title: 'A',
+      closeIcon: () => <span>✕</span>,
+      headerSlot: () => <h1>Custom header</h1>,
+      content: () => <p>Body</p>,
+    })
+    expect(screen.queryByText('✕')).toBeNull()
+    expect(screen.getByText('Custom header')).toBeInTheDocument()
+  })
+
   it('a custom headerSlot replaces the default header', () => {
     open({
       ariaLabel: 'Custom sheet',

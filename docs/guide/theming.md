@@ -96,13 +96,19 @@ Safari won't animate `scrollTo()` inside a `scroll-snap-type: mandatory` scrolle
 it jumps), so the scroller opens *at* its resting snap point and the CSS keyframes
 are the entrance. A sheet with `base.css` alone still slides in correctly.
 
+Both entrances are CSS **animations**, not state-driven transitions, and the card and
+the dim share one animation on one token. That is deliberate: a transition needs a
+before-change style, so it can only start on the frame *after* JS stamps
+`data-sheet-state="open"` — enough for the surface to land visibly ahead of its dim.
+Mobile slides the card up; desktop cross-fades both parts together.
+
 | Token                          | Default                          | Drives                                        |
 | ------------------------------ | -------------------------------- | --------------------------------------------- |
 | `--sheet-enter-duration`       | `400ms`                          | Mobile card slide-up **and** the dim's fade-in |
 | `--sheet-enter-easing`         | `cubic-bezier(0.32, 0.72, 0, 1)` | The slide-up curve                            |
 | `--sheet-enter-duration-focus` | 75 % of the enter duration       | The shorter `focusOnOpen` rise-in             |
 | `--sheet-exit-duration`        | `250ms`                          | Desktop card exit **and** the mobile dim's fade-out |
-| `--sheet-backdrop-duration`    | `250ms`                          | Desktop dim fade                              |
+| `--sheet-backdrop-duration`    | `250ms`                          | Desktop entrance — card **and** dim cross-fade on this one token |
 
 ```css
 :root {
@@ -161,7 +167,7 @@ tokens, to pin the palette.
 
 Every part of the sheet DOM carries a stable attribute you can target from your CSS:
 
-- `[data-sheet-part="root|backdrop|scroll|spacer|panel|card|handle|header|content|footer|overlay|anchor-layer|toplayer|viewport-layer|default-header|icon|title|close"]`
+- `[data-sheet-part="root|backdrop|scroll|spacer|panel|card|handle|header|content|footer|overlay|anchor-layer|toplayer|viewport-layer|default-header|icon|title|close|close-icon"]`
 - `[data-sheet-state="opening|open|closing"]` on the root
 - `[data-sheet-size="sm|md|lg|xl"]` on the card
 - `[data-sheet-focus-open]` on the root — present when opened with `focusOnOpen`

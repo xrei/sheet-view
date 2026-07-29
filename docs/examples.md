@@ -63,6 +63,11 @@ to `ReactNode`.
 
 ### Footer
 
+A pinned footer over a scrolling body, plus both default-header glyphs supplied as
+plain JSX — `icon` before the title and `closeIcon` inside the close button. The button
+itself stays library-owned, so its label, its disabled state and its 44×44 hit target
+come for free.
+
 <DemoPanel>
 <template #preview>
 

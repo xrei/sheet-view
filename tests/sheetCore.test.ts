@@ -116,20 +116,51 @@ describe('createSheetCore', () => {
     )
   })
 
-  it('closeIcon replaces the default × glyph, and defaults to × otherwise', () => {
-    core.open({title: 'A'})
-    expect(document.querySelector('.sv-sheet__close')!.textContent).toBe('×')
-    core.__resetForTests()
+  it('leaves the close glyph node EMPTY by default, so CSS can paint the ×', () => {
+    // The default × is `.sv-sheet__close-icon:empty::before` (asserted in
+    // css-contract, which jsdom can't evaluate). What the core owes it is an
+    // empty node inside the button — any stray text node here kills the fallback.
+    const handle = core.open({title: 'A'})
+    const btn = document.querySelector('.sv-sheet__close')!
+    const glyph = document.querySelector('[data-sheet-part="close-icon"]')!
+    expect(glyph).toBe(handle.slots.closeIcon)
+    expect(btn.contains(glyph)).toBe(true)
+    expect(glyph.childNodes.length).toBe(0)
+  })
 
+  it('closeIcon fills that node, and never touches the accessible name', () => {
     const icon = document.createElement('span')
     icon.textContent = '✕'
     icon.setAttribute('data-custom-icon', '')
     core.open({title: 'B', closeIcon: icon})
     const btn = document.querySelector('.sv-sheet__close')!
-    expect(btn.querySelector('[data-custom-icon]')).not.toBeNull()
+    const glyph = document.querySelector('[data-sheet-part="close-icon"]')!
+    expect(glyph.querySelector('[data-custom-icon]')).not.toBeNull()
     expect(btn.textContent).toBe('✕')
     // aria-label (the accessible name) is unaffected by a custom glyph.
     expect(btn).toHaveAttribute('aria-label', 'Close')
+  })
+
+  it('keeps the close glyph node identical across update() — portals depend on it', () => {
+    // buildDefaultHeader rebuilds the whole row on every update(). If the node
+    // were created there instead of moved, an external renderer's portal would
+    // keep writing into the detached previous one and the glyph would vanish.
+    const handle = core.open({title: 'A'})
+    const before = document.querySelector('[data-sheet-part="close-icon"]')
+    handle.update({title: 'B'})
+    const after = document.querySelector('[data-sheet-part="close-icon"]')
+    expect(after).toBe(before)
+    expect(after).toBe(handle.slots.closeIcon)
+    expect(document.querySelector('.sv-sheet__close')!.contains(after!)).toBe(true)
+  })
+
+  it('warns when closeIcon has no button to fill', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    core.open({title: 'A', closeIcon: '✕', closeHidden: true})
+    expect(
+      warn.mock.calls.some((c) => String(c[0]).includes('`closeIcon` was ignored')),
+    ).toBe(true)
+    warn.mockRestore()
   })
 
   it('the icon slot renders before the title and keeps the close button', () => {

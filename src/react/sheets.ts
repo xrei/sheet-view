@@ -13,18 +13,17 @@ export type ReactSlot = ReactNode | ((ctx: SheetContext) => ReactNode)
 
 type DisplayProps = Omit<
   SheetOpenProps,
-  'headerSlot' | 'icon' | 'content' | 'footer' | 'overlaySlot'
+  'headerSlot' | 'icon' | 'closeIcon' | 'content' | 'footer' | 'overlaySlot'
 >
 
 /** Props accepted by `sheets.open(...)`. Slots widen to `ReactNode`. */
 export interface SheetReactProps extends DisplayProps {
   headerSlot?: ReactSlot
   icon?: ReactSlot
+  closeIcon?: ReactSlot
   content?: ReactSlot
   footer?: ReactSlot
   overlaySlot?: ReactSlot
-  /** @deprecated Use `ariaLabel`. Kept as a runtime alias for parity. */
-  'aria-label'?: string
 }
 
 /** The handle returned by `sheets.open(...)`. Stable for the sheet's life. */
@@ -38,12 +37,13 @@ export interface SheetPublicHandle {
 export interface SheetRenderFns {
   headerSlot?: ReactSlot
   icon?: ReactSlot
+  closeIcon?: ReactSlot
   content?: ReactSlot
   footer?: ReactSlot
   overlaySlot?: ReactSlot
 }
 
-/** @internal Wiring consumed by `<SheetHost>` and `useSheetTopLayer`. */
+/** @internal Wiring consumed by `<SheetHost>` and `useSheetPortalTarget`. */
 export interface SheetsHostBinding {
   subscribe: SheetCore['subscribe']
   getSnapshot: SheetCore['getSnapshot']
@@ -65,6 +65,7 @@ export interface Sheets {
 const RENDER_KEYS = [
   'headerSlot',
   'icon',
+  'closeIcon',
   'content',
   'footer',
   'overlaySlot',
@@ -80,7 +81,7 @@ function pickRenderFns(props: Partial<SheetReactProps>): SheetRenderFns {
   return out
 }
 
-const SKIP_KEYS = new Set<string>([...RENDER_KEYS, 'aria-label', 'ariaLabel'])
+const SKIP_KEYS = new Set<string>(RENDER_KEYS)
 
 function toDisplayProps(
   props: Partial<SheetReactProps>,
@@ -93,8 +94,6 @@ function toDisplayProps(
     if (v === undefined) continue
     display[k] = v
   }
-  const aria = props.ariaLabel ?? props['aria-label']
-  if (aria !== undefined) display['ariaLabel'] = aria
   if (!includeTitle) {
     // Erase, don't delete: the core MERGES props on update(), so deleting the key
     // here leaves an earlier title in place, mountSlots rebuilds the default
