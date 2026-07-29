@@ -28,6 +28,13 @@ export interface SheetOpenProps {
   strategy?: SheetStrategy
   /** Default-header title (ignored when `headerSlot` is provided). */
   title?: string
+  /**
+   * Leading glyph in the default header, before the title. Requires `title` —
+   * that's what makes the default header exist at all — and is ignored when
+   * `headerSlot` is set. Not `aria-hidden`: mark a decorative icon yourself, or
+   * give a meaningful one an accessible name.
+   */
+  icon?: SheetSlot
   /** Mobile height bucket + desktop width. Defaults to `'lg'`. */
   size?: SheetSize
   /**
@@ -78,9 +85,50 @@ export interface SheetOpenProps {
   onExited?: () => void
 }
 
+/**
+ * Motion phase of one sheet. `'settled'` means no ancestor transform is live, so
+ * viewport-coordinate measurements are stable — the only window in which a
+ * `position: fixed` panel or viewport-boundary collision math is reliable.
+ * Mirrors the `[data-sheet-settled]` attribute, which is the CSS-side signal.
+ */
+export type SheetPhase = 'entering' | 'settled' | 'closing'
+
+/** Which popover layer to mount into. */
+export type SheetLayerName = 'anchored' | 'viewport'
+
+/**
+ * Mount points for app-authored popovers — dropdowns, menus, pickers,
+ * tooltips. Both are boxless (`display: contents`), so they never generate a box
+ * that could swallow a backdrop press or the drag gesture.
+ */
+export interface SheetLayers {
+  /**
+   * Inside the card. Unclipped (the card has no overflow), moves with the card
+   * through the entrance, the drag and the exit — so an anchored panel needs no
+   * repositioning for any of them — and a press here never dismisses the sheet.
+   * The mount for ANCHORED panels.
+   *
+   * Children must be positioned (`absolute`): the layer is boxless, so a static
+   * child becomes a flex item of the card and adds a row.
+   */
+  anchored: HTMLElement
+  /**
+   * Inside the sheet's top layer: paints above the card, viewport-fixed, and does
+   * NOT follow the card. Children are click-armed by inheritance. The mount for
+   * VIEWPORT-anchored overlays (toasts, command palettes).
+   */
+  viewport: HTMLElement
+}
+
 /** The DOM nodes exposed per sheet — external renderers portal into these. */
 export interface SheetSlots {
   header: HTMLElement
+  /**
+   * Leading-icon node inside the default header. Created once and MOVED into
+   * each rebuilt header, so its identity is stable across `update()` — an
+   * external renderer can portal into it and keep rendering there.
+   */
+  icon: HTMLElement
   content: HTMLElement
   footer: HTMLElement
   overlay: HTMLElement
@@ -93,6 +141,12 @@ export interface SheetHandle {
   close: () => void
   update: (next: Partial<SheetOpenProps>) => void
   slots: SheetSlots
+  /** Mount nodes for app-authored popovers. */
+  layers: SheetLayers
+  /** The motion phase right now. */
+  phase: () => SheetPhase
+  /** Subscribe to phase changes. Change-only — read `phase()` for the current value. */
+  onPhase: (listener: (phase: SheetPhase) => void) => () => void
 }
 
 /** The reactive projection of an open sheet (one per `getSnapshot()` entry). */
@@ -103,6 +157,12 @@ export interface SheetEntrySnapshot {
   closeDisabled: boolean
   slots: SheetSlots
   handle: SheetHandle
+  layers: SheetLayers
+  phase: SheetPhase
+  /** The positioning root for `layers.anchored` children (`position: relative`). */
+  card: HTMLElement
+  /** The drag scroller — the outermost clip boundary for popover collision math. */
+  scroll: HTMLElement
 }
 
 /** Tunables for a core instance. All optional with sensible defaults. */

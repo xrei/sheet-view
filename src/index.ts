@@ -10,4 +10,7 @@ export type {
   SheetEntrySnapshot,
   SheetCoreOptions,
   SheetCore,
+  SheetPhase,
+  SheetLayers,
+  SheetLayerName,
 } from './core/types'

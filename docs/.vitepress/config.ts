@@ -34,6 +34,7 @@ export default defineConfig({
     nav: [
       {text: 'Guide', link: '/guide/getting-started'},
       {text: 'Theming', link: '/guide/theming'},
+      {text: 'Popovers', link: '/guide/popovers'},
       {text: 'API', link: '/guide/api'},
       {text: 'Examples', link: '/examples'},
       {
@@ -56,6 +57,7 @@ export default defineConfig({
         items: [
           {text: 'Getting started', link: '/guide/getting-started'},
           {text: 'Theming', link: '/guide/theming'},
+          {text: 'Popovers', link: '/guide/popovers'},
           {text: 'API reference', link: '/guide/api'},
         ],
       },

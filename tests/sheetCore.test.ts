@@ -132,6 +132,45 @@ describe('createSheetCore', () => {
     expect(btn).toHaveAttribute('aria-label', 'Close')
   })
 
+  it('the icon slot renders before the title and keeps the close button', () => {
+    const glyph = document.createElement('i')
+    glyph.setAttribute('data-glyph', '')
+    core.open({title: 'A', icon: glyph})
+
+    const header = document.querySelector('.sv-sheet__default-header')!
+    const icon = document.querySelector('[data-sheet-part="icon"]')!
+    expect(header.firstElementChild).toBe(icon)
+    expect(icon.querySelector('[data-glyph]')).not.toBeNull()
+    expect(document.querySelector('.sv-sheet__close')).not.toBeNull()
+    // Sibling of the <h2>, so it can't pollute the aria-labelledby name.
+    expect(icon.querySelector('[data-sheet-part="title"]')).toBeNull()
+  })
+
+  it('warns when `icon` has no title to sit next to (it would render nowhere)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    core.open({ariaLabel: 'A', icon: '★'})
+    expect(warn.mock.calls.some((c) => String(c[0]).includes('`icon` was ignored'))).toBe(
+      true,
+    )
+    warn.mockRestore()
+  })
+
+  it('a vanilla headerSlot + title names the dialog via aria-label', () => {
+    // Same WCAG 4.1.2 hole as the React path, reachable without React: the custom
+    // header means there is no title node to point aria-labelledby at, so the
+    // title has to become the label rather than being dropped on the floor.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const header = document.createElement('h1')
+    header.textContent = 'Filters'
+    core.open({title: 'Filters', headerSlot: header})
+
+    const dialog = document.querySelector('dialog.sv-sheet')!
+    expect(dialog).toHaveAttribute('aria-label', 'Filters')
+    expect(dialog).not.toHaveAttribute('aria-labelledby')
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
   it('closeLabel can be defaulted per core instance', () => {
     const de = createSheetCore({closeLabel: 'Schließen'})
     extraCores.push(de)

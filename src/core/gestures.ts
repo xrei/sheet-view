@@ -1,4 +1,5 @@
 import type {SheetEntry} from './internal'
+import {setPhase} from './phase'
 
 // Below this progress a release always lands on "closed", so the dismiss is
 // decided the moment the drag crosses it.
@@ -47,6 +48,10 @@ function armDragClose(entry: SheetEntry): void {
 // still allows programmatic scroll (the exit animation), and the card's own
 // content scroller is untouched, so long bodies still scroll.
 function lockDrag(entry: SheetEntry): void {
+  // A closing sheet must stay on its exit path: the settle timer is never
+  // cancelled, so without this a programmatic close() inside the entrance window
+  // gets yanked back to the open snap point (and full dim) mid-exit.
+  if (entry.isClosing) return
   if (entry.scroll.style.overflowY === 'hidden') return
   entry.openDone = true
   entry.scroll.scrollTop = entry.panel.offsetTop
@@ -62,8 +67,10 @@ function unlockDrag(entry: SheetEntry): void {
 // so live drag frames set the dim opacity raw (a lingering transition lags it
 // behind the finger). Also set on paths that skip the entrance entirely (desktop,
 // a breakpoint crossing), so no stale transition survives into a drag.
+// It also publishes the JS-side signal: setPhase writes the attribute and tells
+// anyone measuring that viewport coordinates are stable from here on.
 function markSettled(entry: SheetEntry): void {
-  entry.dialog.dataset['sheetSettled'] = ''
+  setPhase(entry, 'settled')
 }
 
 function settleOpen(entry: SheetEntry): void {
@@ -163,6 +170,9 @@ export function runOpenAnimation(
   if (!isMobile()) {
     markSettled(entry)
     requestAnimationFrame(() => {
+      // A close() in the same tick as open() already set 'closing' — writing
+      // 'open' over it would unmatch the closing CSS and kill the exit animation.
+      if (entry.isClosing) return
       entry.dialog.dataset['sheetState'] = 'open'
     })
     entry.openDone = true
@@ -186,6 +196,11 @@ export function runOpenAnimation(
   entry.scroll.scrollTop = entry.panel.offsetTop
 
   requestAnimationFrame(() => {
+    // Same race as the desktop branch: don't overwrite a 'closing' already set
+    // by a same-tick close(), and don't schedule a settle for a sheet on its
+    // way out (settleOpen's members are individually guarded, but scheduling
+    // it at all is just a wasted timer).
+    if (entry.isClosing) return
     entry.dialog.dataset['sheetState'] = 'open'
     if (reduced) settleOpen(entry)
     else setTimeout(() => settleOpen(entry), openSettleMs)
@@ -274,16 +289,47 @@ export function setupCloseHandlers(
   entry: SheetEntry,
   requestClose: () => void,
 ): void {
-  const {dialog, card} = entry
-  let pressedOutsideCard = false
+  const {dialog, backdrop, scroll, closedSpacer, panel} = entry
+
+  // The dismiss surfaces: the parts that are structurally EMPTY — the dim and the
+  // free space around the card. Matched by node identity, not by data-sheet-part,
+  // so consumer markup can't spoof one.
+  //
+  // This is the inverse of the older `!card.contains(target)` test, and the
+  // polarity matters: that test was fail-OPEN, so any DOM the library didn't know
+  // about — an app's dropdown panel portaled into the top layer, say — dismissed
+  // the whole sheet on click. Now only these five nodes do.
+  //
+  // Backdrop-dismissal is unaffected: backdrop and spacer are pointer-events:none,
+  // so a real press on the dim hit-tests through to `scroll` (desktop free space)
+  // or `panel` (mobile, above the card), and a press on the native ::backdrop
+  // retargets to the dialog. All three are in the set.
+  const dismissSurfaces = new Set<EventTarget>([
+    dialog,
+    backdrop,
+    scroll,
+    closedSpacer,
+    panel,
+  ])
+  let pressedDismissSurface = false
 
   // Decide dismiss at pointerdown, not click: a sync re-render can detach the
-  // click target, making a content click look like an outside click.
+  // click target, making a content click look like an outside click. A menu that
+  // unmounts itself on click is the same shape.
   const onPointerDown = (e: PointerEvent): void => {
-    pressedOutsideCard = !card.contains(e.target as Node | null)
+    pressedDismissSurface = e.target != null && dismissSurfaces.has(e.target)
   }
   const onClick = (): void => {
-    if (pressedOutsideCard) requestClose()
+    const dismiss = pressedDismissSurface
+    pressedDismissSurface = false // don't let a stale press leak into a later click
+    if (dismiss) requestClose()
+  }
+  // A press the browser takes over (touch turning into a scroll) fires
+  // pointercancel and never a click, so the flag would survive until the next
+  // click — which can arrive with NO pointerdown of its own (a keyboard
+  // activation) and must not inherit the dead press's verdict.
+  const onPointerCancel = (): void => {
+    pressedDismissSurface = false
   }
 
   // Chrome fires `cancel` on the <dialog> when a child file picker is dismissed;
@@ -304,11 +350,13 @@ export function setupCloseHandlers(
   }
 
   dialog.addEventListener('pointerdown', onPointerDown)
+  dialog.addEventListener('pointercancel', onPointerCancel)
   dialog.addEventListener('click', onClick)
   dialog.addEventListener('cancel', onFileInputCancelCapture, {capture: true})
   dialog.addEventListener('cancel', onCancel)
   entry.cleanups.push(() => {
     dialog.removeEventListener('pointerdown', onPointerDown)
+    dialog.removeEventListener('pointercancel', onPointerCancel)
     dialog.removeEventListener('click', onClick)
     dialog.removeEventListener('cancel', onFileInputCancelCapture, {
       capture: true,

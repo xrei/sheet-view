@@ -110,8 +110,6 @@
   margin-top: 4px;
 }
 
-/* Toast rendered above an open sheet via useSheetTopLayer (React toast demo). The
-   top layer is pointer-events:none, so anything portaled in must re-enable them. */
 .demo-toast {
   position: fixed;
   top: 16px;
@@ -123,8 +121,71 @@
   border-radius: 10px;
   font-size: 14px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-  pointer-events: auto;
-  z-index: 9999;
+}
+
+/* ---------- anchored dropdown + native controls ---------- */
+
+.demo-label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: light-dark(#555, #b8b8c0);
+}
+
+.demo-input,
+.demo-select {
+  font: inherit;
+  font-size: max(1em, 16px);
+  font-weight: 400;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid light-dark(#d8d8de, #45454f);
+  background: light-dark(#fff, #2a2a32);
+  color: inherit;
+}
+
+.demo-select {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  cursor: pointer;
+  text-align: left;
+}
+
+/* Positioned by JS against the card. No z-index: the anchor layer is the card's
+   last child, so it already paints above every other part. */
+.demo-listbox {
+  display: flex;
+  flex-direction: column;
+  font-size: max(1em, 16px);
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid light-dark(#d8d8de, #45454f);
+  background: light-dark(#fff, #2a2a32);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+}
+
+.demo-option {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.demo-option[data-selected] {
+  font-weight: 600;
+}
+@media (hover: hover) {
+  .demo-option:hover {
+    background: light-dark(#f0f0f3, #35353f);
+  }
 }
 
 /* ---------- anatomy ----------

@@ -1,4 +1,6 @@
 import {createStore} from './observable'
+import {devWarn} from './dev'
+import {setPhase} from './phase'
 import {scrollLock, zoomLock} from './locks'
 import {applyRootStyle, buildDefaultHeader, buildSheetDOM, mountSlot} from './dom'
 import {
@@ -42,17 +44,20 @@ function syncDialogLabel(entry: SheetEntry): void {
     dialog.removeAttribute('aria-label')
     return
   }
+  // A custom headerSlot owns the row, so there is no node to point at — but
+  // `title` is still the name the consumer asked for. Naming the dialog from it
+  // beats leaving it nameless (WCAG 4.1.2); aria-labelledby stays preferred
+  // whenever a title node exists. Keep the two texts matching (WCAG 2.5.3).
+  if (typeof props.title === 'string' && props.title) {
+    dialog.setAttribute('aria-label', props.title)
+    dialog.removeAttribute('aria-labelledby')
+    return
+  }
   dialog.removeAttribute('aria-label')
   dialog.removeAttribute('aria-labelledby')
-  // globalThis.process (not bare `process`) so this compiles without @types/node
-  // and can't throw in a bundler-less browser (the vanilla example loads dist raw).
-  const nodeEnv = (globalThis as {process?: {env?: {NODE_ENV?: string}}}).process
-    ?.env?.NODE_ENV
-  if (nodeEnv !== 'production') {
-    console.warn(
-      '[sheet-view] Sheet opened without an accessible name — pass `title` or `ariaLabel` (WCAG 4.1.2).',
-    )
-  }
+  devWarn(
+    'Sheet opened without an accessible name — pass `title` or `ariaLabel` (WCAG 4.1.2).',
+  )
 }
 
 export function createSheetCore(options: SheetCoreOptions = {}): SheetCore {
@@ -80,6 +85,10 @@ export function createSheetCore(options: SheetCoreOptions = {}): SheetCore {
       closeDisabled: !!entry.props.closeDisabled,
       slots: entry.slots,
       handle: entry.handle,
+      layers: entry.layers,
+      phase: entry.phase,
+      card: entry.card,
+      scroll: entry.scroll,
     }
   }
 
@@ -97,17 +106,26 @@ export function createSheetCore(options: SheetCoreOptions = {}): SheetCore {
       ctx,
       props.title != null
         ? () =>
-            buildDefaultHeader(
-              props.title ?? '',
-              () => requestClose(entry),
-              !!props.closeDisabled && !props.onCloseAttempt,
-              !!props.closeHidden,
-              props.closeLabel ?? defaultCloseLabel,
-              props.closeIcon,
+            buildDefaultHeader({
+              title: props.title ?? '',
+              icon: slots.icon,
+              onClose: () => requestClose(entry),
+              closeMuted: !!props.closeDisabled && !props.onCloseAttempt,
+              closeHidden: !!props.closeHidden,
+              closeLabel: props.closeLabel ?? defaultCloseLabel,
+              closeIcon: props.closeIcon,
               ctx,
-            )
+            })
         : undefined,
     )
+    // The default header is library-owned DOM. Once the title goes away — a React
+    // consumer switching to its own headerSlot — mountSlot deliberately leaves the
+    // node untouched so it can't wipe portaled content, which would otherwise
+    // leave our header sitting above theirs. Drop only what we built ourselves.
+    if (props.headerSlot == null && props.title == null) {
+      slots.header.querySelector('[data-sheet-part="default-header"]')?.remove()
+    }
+    mountSlot(slots.icon, props.icon, ctx)
     mountSlot(slots.content, props.content, ctx)
     mountSlot(slots.footer, props.footer, ctx)
     mountSlot(slots.overlay, props.overlaySlot, ctx)
@@ -157,6 +175,7 @@ export function createSheetCore(options: SheetCoreOptions = {}): SheetCore {
     const immediate = opts.immediate ?? false
     if (entry.isClosing) return
     entry.isClosing = true
+    setPhase(entry, 'closing')
 
     // touch-action:none is what stops a late swipe-up from dragging the panel
     // back into view (WebKit touch scrolling ignores pointer-events).
@@ -200,6 +219,7 @@ export function createSheetCore(options: SheetCoreOptions = {}): SheetCore {
           }
         }
         entry.cleanups.length = 0
+        entry.phaseListeners.clear()
 
         const idx = stack.indexOf(entry)
         if (idx >= 0) stack.splice(idx, 1)
@@ -247,9 +267,13 @@ export function createSheetCore(options: SheetCoreOptions = {}): SheetCore {
       panel: dom.panel,
       card: dom.card,
       slots: dom.slots,
+      layers: dom.layers,
       props,
       isClosing: false,
       openDone: false,
+      phase: 'entering',
+      phaseListeners: new Set(),
+      notify: emit,
       rootStyleKeys: [],
       cleanups: [],
       closeTimer: null,
@@ -262,6 +286,12 @@ export function createSheetCore(options: SheetCoreOptions = {}): SheetCore {
       close: () => closeEntry(entry),
       update: (next: Partial<SheetOpenProps>) => updateEntry(entry, next),
       slots: entry.slots,
+      layers: entry.layers,
+      phase: () => entry.phase,
+      onPhase: (listener) => {
+        entry.phaseListeners.add(listener)
+        return () => entry.phaseListeners.delete(listener)
+      },
     }
     entry.ctx = {close: entry.handle.close, update: entry.handle.update}
 
@@ -278,6 +308,13 @@ export function createSheetCore(options: SheetCoreOptions = {}): SheetCore {
     entry.rootStyleKeys = applyRootStyle(entry.dialog, props.style)
     mountSlots(entry)
     syncDialogLabel(entry)
+    // The icon lives in the default header, and no `title` means no default header
+    // at all — so the icon would silently render nowhere.
+    if (props.icon != null && props.title == null && props.headerSlot == null) {
+      devWarn(
+        '`icon` was ignored: it renders in the default header, which only exists when `title` is set.',
+      )
+    }
     scrollLock.acquire()
     if (useZoomLock) zoomLock.acquire()
     setupCloseHandlers(entry, () => requestClose(entry))
@@ -318,6 +355,7 @@ export function createSheetCore(options: SheetCoreOptions = {}): SheetCore {
     __resetForTests(): void {
       for (const entry of [...stack]) {
         if (entry.closeTimer) clearTimeout(entry.closeTimer)
+        entry.phaseListeners.clear()
         for (const fn of entry.cleanups) {
           try {
             fn()

@@ -8,8 +8,16 @@ export type {
   ReactSlot,
 } from './react/sheets'
 export {SheetHost} from './react/SheetHost'
-export type {SheetHostProps} from './react/SheetHost'
+export type {SheetHostProps, SheetSlotErrorHandler} from './react/SheetHost'
 export {useSheetTopLayer} from './react/useSheetTopLayer'
+
+export {SheetLayoutContext} from './react/SheetLayoutContext'
+export type {SheetLayoutValue} from './react/SheetLayoutContext'
+export {useSheetLayout} from './react/useSheetLayout'
+export {useSheetPortalTarget} from './react/useSheetPortalTarget'
+export type {SheetPortalTargetOptions} from './react/useSheetPortalTarget'
+export {SheetPortal} from './react/SheetPortal'
+export type {SheetPortalProps} from './react/SheetPortal'
 
 export {createSheetCore, sheetCore} from './core/sheetCore'
 export type {
@@ -23,4 +31,7 @@ export type {
   SheetEntrySnapshot,
   SheetCoreOptions,
   SheetCore,
+  SheetPhase,
+  SheetLayers,
+  SheetLayerName,
 } from './core/types'

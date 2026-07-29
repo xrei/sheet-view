@@ -22,6 +22,10 @@
       "types": "./dist/react.d.ts",
       "default": "./dist/react.js"
     },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "default": "./dist/testing.js"
+    },
     "./base.css": "./dist/base.css",
     "./theme.css": "./dist/theme.css",
     "./styles.css": "./dist/styles.css",
@@ -90,6 +94,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.2.0",
     "jsdom": "^29.1.1",
+    "lightningcss": "^1.33.0",
     "publint": "^0.3.21",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",

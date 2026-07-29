@@ -54,7 +54,7 @@ describe('CSS contract', () => {
     expect(css).not.toContain('animation:')
   })
 
-  it('every duration is a token, so motion is tunable without a cascade fight', () => {
+  it('the public --sheet-* surface of base.css is exactly the documented set (semver-linter)', () => {
     const css = base.replace(/\/\*[\s\S]*?\*\//g, '')
     const found = [
       ...new Set([...css.matchAll(/--sheet-[a-z-]+/g)].map((m) => m[0])),
@@ -65,11 +65,60 @@ describe('CSS contract', () => {
       '--sheet-enter-duration-focus',
       '--sheet-enter-easing',
       '--sheet-exit-duration',
+      '--sheet-header-gap',
+      '--sheet-height',
+      '--sheet-height-lg',
+      '--sheet-height-md',
+      '--sheet-height-sm',
+      '--sheet-height-xl',
+      '--sheet-inset',
+      '--sheet-inset-desktop',
+      '--sheet-width',
+      '--sheet-width-lg',
+      '--sheet-width-md',
+      '--sheet-width-sm',
+      '--sheet-width-xl',
     ])
+  })
+
+  it('every duration is a token, so motion is tunable without a cascade fight', () => {
     // No hardcoded ms/s outside the token defaults: each animation/transition reads
     // a private var that resolves through the public token.
+    const css = base.replace(/\/\*[\s\S]*?\*\//g, '')
     expect(css).toMatch(/animation: sv-sheet-slide-up var\(--_sheet-enter\)/)
     expect(css).toMatch(/transition: opacity var\(--_sheet-enter\) ease/)
+  })
+
+  it('public tokens are read once in a .sv-sheet block — never inline at a use site', () => {
+    // The pattern that makes overrides reliable: `--_sheet-x: var(--sheet-x, lit)`
+    // declared once, `var(--_sheet-x)` everywhere else. An inline
+    // `var(--sheet-x, literal)` at a use site is a second source of truth that
+    // silently drifts from the block's default.
+    const css = base.replace(/\/\*[\s\S]*?\*\//g, '')
+    const outsideTokenBlocks = css.replace(/\.sv-sheet\s*\{[^}]*\}/g, '')
+    expect(outsideTokenBlocks).not.toMatch(/var\(--sheet-/)
+  })
+
+  it('card sizing is tokenised and the viewport clamps stay inside the library', () => {
+    const css = base.replace(/\/\*[\s\S]*?\*\//g, '')
+    for (const size of ['sm', 'md', 'lg', 'xl']) {
+      expect(css).toContain(
+        `width: min(var(--_sheet-width-${size}), var(--_sheet-max-width));`,
+      )
+      expect(css).toContain(`height: var(--_sheet-height-${size});`)
+    }
+    expect(css).toContain(
+      '--_sheet-max-width: calc(100vw - var(--_sheet-inset-desktop));',
+    )
+    expect(css).toContain('--_sheet-max-height: calc(100dvh - var(--_sheet-inset));')
+    expect(css).toContain(
+      '--_sheet-max-height-desktop: calc(100vh - var(--_sheet-inset-desktop));',
+    )
+    // The bucket widths moved into the token block; none may linger at a use site.
+    const desktop = css.slice(css.indexOf('@media (min-width: 768px)'))
+    for (const literal of ['400px', '560px', '800px', '1000px']) {
+      expect(desktop).not.toContain(`width: ${literal}`)
+    }
   })
 
   it('the mobile exit fades the dim out — it must not pop with the DOM', () => {
@@ -81,9 +130,60 @@ describe('CSS contract', () => {
     expect(mobile).toMatch(
       /\[data-sheet-state='closing'\] \.sv-sheet__backdrop \{\s*opacity: 0;\s*transition: opacity var\(--_sheet-exit\)/,
     )
-    expect(mobile.indexOf('data-sheet-settled')).toBeLessThan(
-      mobile.indexOf("data-sheet-state='closing'"),
+    // Both backdrop rules are (0,3,0), so the closing one only wins by coming
+    // later. Compare the two rules themselves, not bare substrings — other rules
+    // legitimately mention the closing state.
+    expect(
+      mobile.indexOf(':not([data-sheet-settled]) .sv-sheet__backdrop'),
+    ).toBeLessThan(
+      mobile.indexOf("[data-sheet-state='closing'] .sv-sheet__backdrop"),
     )
+  })
+
+  it('both popover layers are boxless, and only the viewport one re-arms clicks', () => {
+    // Boxless is the whole design: a real inset:0 wrapper with pointer-events:auto
+    // would cover the viewport and swallow backdrop-dismiss AND drag-to-close.
+    const css = base.replace(/\/\*[\s\S]*?\*\//g, '')
+    expect(css).toMatch(/\.sv-sheet__anchor-layer\s*\{\s*display: contents;\s*\}/)
+    expect(css).toMatch(
+      /\.sv-sheet__viewport-layer\s*\{\s*display: contents;\s*pointer-events: auto;\s*\}/,
+    )
+  })
+
+  it('the top layer goes inert while closing — it escapes the inline close guard', () => {
+    const css = base.replace(/\/\*[\s\S]*?\*\//g, '')
+    expect(css).toMatch(
+      /\[data-sheet-state='closing'\] \.sv-sheet__toplayer,[\s\S]*?\.sv-sheet__toplayer \*\s*\{\s*pointer-events: none;/,
+    )
+  })
+
+  it('the card and the top layer are stacking contexts, so consumer z-index cannot cross out', () => {
+    // Also makes rest and mid-animation behave identically: a live transform
+    // already made the card a stacking context, so order used to invert for 400ms.
+    const css = base.replace(/\/\*[\s\S]*?\*\//g, '')
+    expect(css).toMatch(/\.sv-sheet__card\s*\{[^}]*isolation: isolate/)
+    expect(css).toMatch(/\.sv-sheet__toplayer\s*\{[^}]*isolation: isolate/)
+  })
+
+  it('no z-index anywhere — paint order is tree order, by contract (semver-linter)', () => {
+    const strip = (css: string): string => css.replace(/\/\*[\s\S]*?\*\//g, '')
+    expect(strip(base)).not.toContain('z-index')
+    expect(strip(theme)).not.toContain('z-index')
+  })
+
+  it('the card is the anchored layer’s offsetParent, and content deliberately is not', () => {
+    const css = base.replace(/\/\*[\s\S]*?\*\//g, '')
+    expect(css).toMatch(/\.sv-sheet__card\s*\{[^}]*position: relative/)
+    // Giving .sv-sheet__content a position would re-arm its clip on absolute
+    // descendants — the exact thing layers.anchored exists to avoid.
+    expect(css).not.toMatch(/\.sv-sheet__content\s*\{[^}]*position:/)
+  })
+
+  it('the header icon collapses while empty, so no gap appears before React fills it', () => {
+    const css = base.replace(/\/\*[\s\S]*?\*\//g, '')
+    expect(css).toMatch(/\.sv-sheet__icon:empty\s*\{\s*display: none/)
+    expect(css).toMatch(/\.sv-sheet__icon\s*\{[^}]*flex-shrink: 0/)
+    expect(css).toContain('gap: var(--_sheet-header-gap);')
   })
 
   it('#8 — the close button has a ≥44px hit target in base.css (works themeless)', () => {

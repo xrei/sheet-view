@@ -118,6 +118,53 @@ describe('SheetHost', () => {
     expect(screen.getByText('Apply')).toBeInTheDocument()
   })
 
+  it('a React icon renders in the default header, before the title', () => {
+    open({
+      title: 'Filters',
+      icon: () => <svg data-testid="glyph" />,
+      content: () => <p>Body</p>,
+    })
+    const header = document.querySelector('.sv-sheet__default-header')!
+    const icon = document.querySelector('[data-sheet-part="icon"]')!
+    expect(header.firstElementChild).toBe(icon)
+    expect(icon.querySelector('[data-testid="glyph"]')).not.toBeNull()
+    // The whole point: an icon no longer costs you the close button.
+    expect(screen.getByLabelText('Close')).toBeInTheDocument()
+  })
+
+  it('the icon node keeps its identity across update() (stable portal container)', () => {
+    // Load-bearing. mountSlots rebuilds the default header on EVERY update(), so
+    // if the icon node is ever created inside buildDefaultHeader instead of being
+    // moved into it, React's portal container silently detaches and the icon
+    // vanishes on the first update() — with no error anywhere. Do not "simplify"
+    // the node back into the header builder.
+    const handle = open({
+      title: 'A',
+      icon: () => <span>★</span>,
+      content: () => <p>Body</p>,
+    })
+    const before = document.querySelector('[data-sheet-part="icon"]')
+
+    act(() => {
+      handle.update({title: 'B'})
+    })
+
+    expect(document.querySelector('[data-sheet-part="icon"]')).toBe(before)
+    expect(screen.getByText('★')).toBeInTheDocument()
+    expect(screen.getByText('B')).toBeInTheDocument()
+  })
+
+  it('icon is ignored when headerSlot takes over the row', () => {
+    open({
+      title: 'A',
+      icon: () => <span>★</span>,
+      headerSlot: () => <h1>Custom header</h1>,
+      content: () => <p>Body</p>,
+    })
+    expect(screen.queryByText('★')).toBeNull()
+    expect(screen.getByText('Custom header')).toBeInTheDocument()
+  })
+
   it('a custom headerSlot replaces the default header', () => {
     open({
       ariaLabel: 'Custom sheet',

@@ -123,6 +123,13 @@ sheet without touching the file. Overrides apply in both light and dark:
   `--sheet-border`, `--sheet-border-subtle`, `--sheet-hover`, `--sheet-backdrop`
 - **Geometry:** `--sheet-radius`, `--sheet-radius-desktop`, `--sheet-shadow`,
   `--sheet-shadow-mobile`, `--sheet-backdrop-blur`
+- **Sizing** (from `base.css`): `--sheet-width-sm|md|lg|xl` (`400/560/800/1000px`,
+  desktop), `--sheet-height-sm|md|lg|xl` (`auto/65dvh/…`, mobile),
+  `--sheet-inset` (`40px`) / `--sheet-inset-desktop` (`64px`) — the gap kept between
+  the card and the viewport edge — and `--sheet-header-gap` (`16px`). Plus
+  `--sheet-width` / `--sheet-height` with **no** suffix, which override every bucket
+  at once: that is the arbitrary-size escape. See
+  [Sizing](https://xrei.github.io/sheet-view/guide/theming#sizing).
 - **Skin:** `--sheet-title-size`, `--sheet-title-weight`, `--sheet-close-size`,
   `--sheet-close-radius`, `--sheet-handle-radius`, `--sheet-handle-opacity`,
   `--sheet-header-padding`
@@ -165,7 +172,7 @@ inherits `color-scheme` from your root and resolves its palette against it:
 Every part of the sheet DOM carries a stable attribute you can target from your
 own CSS:
 
-- `[data-sheet-part="root|backdrop|scroll|spacer|panel|card|handle|header|content|footer|overlay|toplayer|default-header|title|close"]`
+- `[data-sheet-part="root|backdrop|scroll|spacer|panel|card|handle|header|content|footer|overlay|anchor-layer|toplayer|viewport-layer|default-header|icon|title|close"]`
 - `[data-sheet-state="opening|open|closing"]` on the root
 - `[data-sheet-size="sm|md|lg|xl"]` on the card
 - `[data-sheet-focus-open]` on the root — present when opened with `focusOnOpen`
@@ -188,15 +195,16 @@ see it.
 | ------------------------------- | ------------------------------------------ | ------------------------------------------------------------ |
 | `key`                           | `string`                                   | Dedupe scope for a singleton sheet.                          |
 | `strategy`                      | `'reuse' \| 'replace' \| 'update'`         | Only with `key`. Default `'reuse'`.                          |
-| `title`                         | `string`                                   | Default-header text (ignored if `headerSlot` is set).        |
-| `size`                          | `'sm' \| 'md' \| 'lg' \| 'xl'`             | Default `'lg'`.                                              |
+| `title`                         | `string`                                   | Default-header text (ignored if `headerSlot` is set). **Omit it and there is no default header at all** — and so no close button. |
+| `icon`                          | `ReactNode \| (ctx) => ReactNode`          | Leading glyph before the title. Requires `title`; ignored with `headerSlot`. Not `aria-hidden` — mark a decorative icon yourself. |
+| `size`                          | `'sm' \| 'md' \| 'lg' \| 'xl'`             | Default `'lg'`. Width/height per bucket are tokens — see [Sizing](https://xrei.github.io/sheet-view/guide/theming#sizing). |
 | `focusOnOpen`                   | `boolean`                                  | A field autofocuses on open — opens keyboard-safe on mobile. |
 | `content` / `headerSlot` / `footer` / `overlaySlot` | `ReactNode \| (ctx) => ReactNode` | Slot content. (`Node \| string \| fn` in the core.)          |
 | `closeDisabled`                 | `boolean`                                  | Blocks X / backdrop / Escape / drag; fires `onCloseAttempt`. |
 | `closeHidden`                   | `boolean`                                  | Omits the default-header close button.                       |
 | `closeLabel`                    | `string`                                   | Accessible label for the close button. Default `'Close'`.    |
-| `closeIcon`                     | `ReactNode \| (ctx) => ReactNode`          | Custom glyph/SVG in place of `×`; the a11y name stays `closeLabel`. |
-| `ariaLabel`                     | `string`                                   | Accessible name. Without it, a `title` labels the dialog via `aria-labelledby`. |
+| `closeIcon`                     | `Node \| string \| (ctx) => Node \| string` | Custom glyph in place of `×`; the a11y name stays `closeLabel`. Core-shaped, **not** `ReactNode` — for a JSX glyph use `icon` or `headerSlot`. |
+| `ariaLabel`                     | `string`                                   | Accessible name. Without it a `title` labels the dialog — via `aria-labelledby` for the default header, or as `aria-label` when `headerSlot` owns the row. |
 | `cardClassName`                 | `string`                                   | Extra classes on the card.                                   |
 | `className`                     | `string`                                   | Class(es) on the **root** dialog.                            |
 | `style`                         | `Record<string, string>`                   | Inline styles/tokens on the root — reaches every part.       |
@@ -215,14 +223,39 @@ closes the old sheet and opens fresh; `update` merges props into the live sheet.
 - `sheets.hasLocked()` — `true` while any open sheet has `closeDisabled` (handy
   for a `beforeunload` guard).
 
-### `<SheetHost instance?={sheets} />`
+### `<SheetHost instance?={sheets} onSlotError?={fn} />`
 
-Mounted once at the app root; portals React slot content into the core's DOM.
+Mounted once at the app root; portals React slot content into the core's DOM. A slot
+that throws is contained to that slot — it renders nothing and logs to
+`console.error`, while the sheet (and your app) stays mounted. `onSlotError(error,
+info, slot)` is a reporting seam for Sentry; it is not a place to render a fallback.
+
+### Popovers — `<SheetPortal>`, `useSheetLayout()`, `useSheetPortalTarget()`
+
+Dropdowns, select menus and pickers anchored to a trigger inside a sheet. `<SheetPortal>`
+mounts them where they are unclipped, ride the card, and don't dismiss the sheet on
+click; `useSheetLayout()` hands you the nodes to measure and clip against. The library
+ships no positioning — your floating-ui / Popper / Radix code keeps working.
+
+```jsx
+<SheetPortal>
+  <div style={{position: 'absolute', top, left}}>…</div>
+</SheetPortal>
+
+<SheetPortal layer="viewport">   {/* toasts: above the card, viewport-fixed */}
+  <Toast />
+</SheetPortal>
+```
+
+Full contract, the positioning rules and the paint-order guarantee:
+**[Popovers](https://xrei.github.io/sheet-view/guide/popovers)**.
 
 ### `useSheetTopLayer(instance?)` → `HTMLElement | null`
 
-The top-layer node of the topmost open sheet (or `null`). Portal global overlays
-(toasts, tooltips) into it so they paint above the modal. See the React example.
+The raw top-layer node of the topmost open sheet (or `null`). Prefer
+`useSheetPortalTarget({layer: 'viewport'})`: this node is `pointer-events: none`, so
+anything you portal in must re-arm pointer events on the panel itself — and a
+full-bleed wrapper that does it wrongly disables drag-to-close.
 
 ### Multiple instances
 
@@ -241,6 +274,39 @@ can't drift apart. A CSS override of the public token still wins over it.
 off — disabling zoom is a WCAG 1.4.4 failure, and the base theme already prevents
 iOS focus-zoom by keeping sheet inputs ≥16 px.
 
+## Testing
+
+jsdom ships `HTMLDialogElement` without `showModal()`, `show()` or `close()`, so any
+test that opens a sheet throws `showModal is not a function`. Install the shim once,
+in your setup file:
+
+```js
+// vitest.setup.js / jest.setup.js
+import {installDialogShim} from 'sheet-view/testing'
+
+installDialogShim()
+```
+
+It is idempotent, guards each member separately, and is a silent no-op in a real
+browser — so the same setup file works under vitest browser mode or Playwright.
+
+What it does **not** emulate, deliberately: the top layer, focus trapping, `inert`,
+focus restoration, and `requestClose()`. jsdom cannot host those, and faking them
+produces tests that pass against a fiction. Escape is not translated either — dispatch
+`cancel` directly, which is what the UA actually does:
+
+```js
+fireEvent(dialog, new Event('cancel', {cancelable: true}))
+```
+
+If you'd rather press Escape in tests, opt in with
+`installDialogShim({cancelOnEscape: true})`. It picks the last `dialog[open]` as
+"topmost", which is an approximation — jsdom has no top-layer stack.
+
+> **Don't hand-roll this.** A shim that patches `showModal()` but not `close()` looks
+> fine until the sheet closes: the core releases its scroll lock on the native `close`
+> event, so without it the page stays frozen for the rest of the test file.
+
 ## Notes & known limitations
 
 - **Client-only `open()`.** `open()` touches `document`; call it in the browser,
@@ -255,19 +321,34 @@ iOS focus-zoom by keeping sheet inputs ≥16 px.
   another element is tapped — so a swipe-closed sheet leaves the button that opened
   it highlighted (tapping empty space doesn't clear it). Gate your own `:hover`
   styles behind `@media (hover: hover)`; the built-in theme already does.
-- **Password-manager extensions.** `showModal()` makes everything outside the
-  dialog inert — including the autofill dropdowns that extensions inject into the
-  page. The dropdown draws above the sheet but can't be clicked; the pointer falls
-  through to whatever sits beneath it. This is per-spec top-layer behaviour
+- **Third-party overlays the page doesn't own** (password-manager autofill).
+  `showModal()` makes everything outside the dialog inert, and an extension injects
+  its dropdown into the page, not into your dialog. It draws above the sheet but
+  can't be clicked; the pointer falls through to whatever sits beneath it — and if
+  that's the dim, the sheet closes. This is per-spec top-layer behaviour
   ([whatwg/html#9936](https://github.com/whatwg/html/issues/9936)), and a page
-  can't override it. Bitwarden and 1Password detect modal dialogs and work around
-  it; iCloud Passwords currently doesn't. Built-in browser autofill (mobile,
-  Chrome's own manager, Safari) is native UI and unaffected.
+  can't override it: you cannot move someone else's DOM inside your dialog.
+  Bitwarden and 1Password detect modal dialogs and work around it; iCloud Passwords
+  currently doesn't. Built-in browser autofill (mobile, Chrome's own manager,
+  Safari) is native UI and unaffected.
+
+  **This is not a limit on your own popovers.** The rule is only "is the DOM
+  inside the `<dialog>`", and your dropdowns are DOM you control — mount them with
+  `<SheetPortal>` and they paint above the card, stay clickable, and don't dismiss
+  the sheet. See [Popovers](https://xrei.github.io/sheet-view/guide/popovers).
 - **`strategy: 'replace'`.** The replaced sheet closes silently — `onExited` fires,
   `onClose` does not. A native close (a `<form method="dialog">` submit, or a
   browser force-close) tears down cleanly and fires both.
-- **`overlaySlot` / top layer are `pointer-events: none`.** Interactive children
-  portaled into them must set `pointer-events: auto` on themselves.
+- **The raw top layer is `pointer-events: none`.** Interactive children portaled
+  into it via `useSheetTopLayer()` must set `pointer-events: auto` **on the panel
+  itself** — a full-bleed wrapper that does it swallows backdrop-dismiss and
+  drag-to-close. `<SheetPortal layer="viewport">` handles this for you.
+  (`overlaySlot` is not affected: it is `display: contents` and its children are
+  interactive as-is.)
+- **A slot that throws is contained to that slot.** It renders nothing and logs to
+  `console.error`; the sheet and the rest of your app stay mounted, so the default
+  header's close button still works. The slot stays blank until the sheet closes —
+  there is no retry. Pass `onSlotError` to `<SheetHost>` to forward it to Sentry.
 - **Breakpoint crossing.** The mobile/desktop decision is made once, at `open()`.
   A sheet stays visible across a rotate or split-view change, but the drag gesture
   binds only on open — a sheet opened on desktop and then narrowed isn't draggable

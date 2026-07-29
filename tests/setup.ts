@@ -2,36 +2,16 @@ import {afterEach} from 'vitest'
 import {cleanup} from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 
-// jsdom ships an empty HTMLDialogElement (no showModal/show/close, no reflecting
-// `open`). The core opens sheets via showModal(), so shim the minimum it needs.
-// Test-only — real browsers implement these natively. Escape→`cancel` is not
-// shimmed; tests simulate it by dispatching a `cancel` event on the dialog.
-if (
-  typeof HTMLDialogElement !== 'undefined' &&
-  !HTMLDialogElement.prototype.showModal
-) {
-  const proto = HTMLDialogElement.prototype
-  Object.defineProperty(proto, 'open', {
-    configurable: true,
-    get(this: HTMLDialogElement) {
-      return this.hasAttribute('open')
-    },
-    set(this: HTMLDialogElement, value: boolean) {
-      if (value) this.setAttribute('open', '')
-      else this.removeAttribute('open')
-    },
-  })
-  proto.showModal = function (this: HTMLDialogElement) {
-    this.setAttribute('open', '')
-  }
-  proto.show = function (this: HTMLDialogElement) {
-    this.setAttribute('open', '')
-  }
-  proto.close = function (this: HTMLDialogElement) {
-    this.removeAttribute('open')
-    this.dispatchEvent(new Event('close'))
-  }
-}
+import {installDialogShim} from '../src/testing'
+
+// jsdom ships HTMLDialogElement without showModal/show/close, and the core opens
+// sheets via showModal(). We consume the SHIPPED shim (from src, so the suite
+// still needs no build) rather than a private copy — a regression in what we
+// publish then breaks these tests immediately.
+//
+// Escape→`cancel` is deliberately left off: tests dispatch `cancel` on the dialog
+// directly, which is the honest simulation of what the UA does.
+installDialogShim()
 
 afterEach(() => {
   cleanup()

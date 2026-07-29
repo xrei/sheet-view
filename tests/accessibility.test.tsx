@@ -105,4 +105,66 @@ describe('accessibility', () => {
     })
     expect(accessibleName(dialog()!)).toBe('B')
   })
+
+  // A custom header used to cost the dialog its name entirely: the adapter drops
+  // `title` so React owns the row, syncDialogLabel then found no title node and
+  // stripped both attributes — a WCAG 4.1.2 failure on the sanctioned escape hatch.
+  it('a custom headerSlot with a title still names the dialog, via aria-label', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    open({
+      title: 'Filters',
+      headerSlot: () => <h1>Filters</h1>,
+      content: () => <p>Body</p>,
+    })
+    const dlg = dialog()!
+    expect(dlg).toHaveAttribute('aria-label', 'Filters')
+    expect(dlg).not.toHaveAttribute('aria-labelledby')
+    expect(accessibleName(dlg)).toBe('Filters')
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('an explicit ariaLabel still wins over the title on the headerSlot path', () => {
+    open({
+      title: 'Filters',
+      ariaLabel: 'Filter products',
+      headerSlot: () => <h1>Filters</h1>,
+      content: () => <p>Body</p>,
+    })
+    expect(dialog()).toHaveAttribute('aria-label', 'Filter products')
+  })
+
+  it('update() to a headerSlot keeps the name and does not render a second header', () => {
+    let handle!: SheetPublicHandle
+    act(() => {
+      handle = sheets.open({title: 'Original', content: () => <p>Body</p>})
+    })
+    act(() => {
+      handle.update({headerSlot: () => <h1>Custom header</h1>})
+    })
+
+    // The core merges props, so an erased title has to actually erase — a delete
+    // left 'Original' behind and mountSlots rebuilt the default header under this one.
+    expect(document.querySelectorAll('.sv-sheet__default-header')).toHaveLength(0)
+    expect(screen.getByText('Custom header')).toBeInTheDocument()
+    expect(accessibleName(dialog()!)).toBe('Original')
+  })
+
+  it('a keyed update() that omits headerSlot does not rebuild the default header', () => {
+    act(() => {
+      sheets.open({
+        key: 'k',
+        strategy: 'update',
+        headerSlot: () => <h1>Custom header</h1>,
+        content: () => <p>Body</p>,
+      })
+    })
+    act(() => {
+      sheets.open({key: 'k', strategy: 'update', title: 'Later title'})
+    })
+
+    expect(document.querySelectorAll('.sv-sheet__default-header')).toHaveLength(0)
+    expect(screen.getByText('Custom header')).toBeInTheDocument()
+    expect(accessibleName(dialog()!)).toBe('Later title')
+  })
 })

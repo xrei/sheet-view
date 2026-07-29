@@ -44,7 +44,11 @@ widens slots to `ReactNode` — `sheets` is ready to use over the shared core, a
 | `sheets` | `sheet-view/react` | ready-made facade over `sheetCore` |
 | `createSheets(core?)` | `sheet-view/react` | your own facade (an isolated sheet stack) |
 | `<SheetHost instance={…}/>` | `sheet-view/react` | renders a facade's sheets; omit `instance` for the default `sheets` |
-| `useSheetTopLayer()` | `sheet-view/react` | the node above the top sheet, for toasts |
+| `<SheetPortal/>` | `sheet-view/react` | mounts popovers (dropdowns, toasts) in the right layer |
+| `useSheetLayout()` | `sheet-view/react` | this sheet's card / scrollers / layers / motion phase |
+| `useSheetPortalTarget()` | `sheet-view/react` | the node to portal into — never `null` |
+| `useSheetTopLayer()` | `sheet-view/react` | the raw top-layer node; superseded by `useSheetPortalTarget` |
+| `installDialogShim()` | `sheet-view/testing` | makes `<dialog>` work under jsdom, for tests |
 
 ## Vanilla
 

@@ -1,4 +1,11 @@
-import type {SheetContext, SheetHandle, SheetOpenProps, SheetSlots} from './types'
+import type {
+  SheetContext,
+  SheetHandle,
+  SheetLayers,
+  SheetOpenProps,
+  SheetPhase,
+  SheetSlots,
+} from './types'
 
 /** The full mutable state of one open sheet. */
 export interface SheetEntry {
@@ -10,9 +17,14 @@ export interface SheetEntry {
   panel: HTMLElement
   card: HTMLElement
   slots: SheetSlots
+  layers: SheetLayers
   props: SheetOpenProps
   isClosing: boolean
   openDone: boolean
+  phase: SheetPhase
+  phaseListeners: Set<(phase: SheetPhase) => void>
+  /** Re-emits the store snapshot. Wired to the core's `emit` so phase.ts can notify. */
+  notify: () => void
   /** Dash-case keys last applied to the root dialog from props.style — cleared on the next update. */
   rootStyleKeys: string[]
   cleanups: Array<() => void>
@@ -30,4 +42,5 @@ export interface SheetDOM {
   panel: HTMLElement
   card: HTMLElement
   slots: SheetSlots
+  layers: SheetLayers
 }

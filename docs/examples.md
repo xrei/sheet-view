@@ -121,10 +121,45 @@ A `closeDisabled` sheet: the X, backdrop, Escape, and drag are all blocked.
 
 </DemoPanel>
 
+### Anchored dropdown
+
+A panel anchored to a trigger inside the scrolling body. `<SheetPortal>` mounts it in
+the card's anchor layer, so it escapes the body's clip, follows the card through the
+entrance and the drag, and selecting an option doesn't dismiss the sheet. Positioning
+is the app's — this one uses ~20 lines of `getBoundingClientRect`; use a positioning library in
+a real app. See [Popovers](./guide/popovers).
+
+<DemoPanel>
+<template #preview>
+
+<ReactDemo demo="anchored" />
+
+</template>
+
+<<< ../examples/react/src/demos/AnchoredSelect.tsx
+
+</DemoPanel>
+
+### Native controls
+
+`<select>`, date inputs and datalists need nothing from the library — their popups are
+OS-rendered, so the modal top layer doesn't apply to them.
+
+<DemoPanel>
+<template #preview>
+
+<ReactDemo demo="native" />
+
+</template>
+
+<<< ../examples/react/src/demos/NativeControls.tsx
+
+</DemoPanel>
+
 ### Toast above the sheet
 
-`useSheetTopLayer()` returns the top sheet's top-layer node — portal a toast into it
-and it paints above the modal.
+`<SheetPortal layer="viewport">` puts a toast in the sheet's top layer, above the
+modal — and keeps backdrop-dismiss and drag-to-close working underneath it.
 
 <DemoPanel>
 <template #preview>

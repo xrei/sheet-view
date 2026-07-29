@@ -13,12 +13,13 @@ export type ReactSlot = ReactNode | ((ctx: SheetContext) => ReactNode)
 
 type DisplayProps = Omit<
   SheetOpenProps,
-  'headerSlot' | 'content' | 'footer' | 'overlaySlot'
+  'headerSlot' | 'icon' | 'content' | 'footer' | 'overlaySlot'
 >
 
 /** Props accepted by `sheets.open(...)`. Slots widen to `ReactNode`. */
 export interface SheetReactProps extends DisplayProps {
   headerSlot?: ReactSlot
+  icon?: ReactSlot
   content?: ReactSlot
   footer?: ReactSlot
   overlaySlot?: ReactSlot
@@ -36,6 +37,7 @@ export interface SheetPublicHandle {
 /** React slot render-fns tracked per sheet id. */
 export interface SheetRenderFns {
   headerSlot?: ReactSlot
+  icon?: ReactSlot
   content?: ReactSlot
   footer?: ReactSlot
   overlaySlot?: ReactSlot
@@ -62,6 +64,7 @@ export interface Sheets {
 
 const RENDER_KEYS = [
   'headerSlot',
+  'icon',
   'content',
   'footer',
   'overlaySlot',
@@ -82,6 +85,7 @@ const SKIP_KEYS = new Set<string>([...RENDER_KEYS, 'aria-label', 'ariaLabel'])
 function toDisplayProps(
   props: Partial<SheetReactProps>,
   includeTitle: boolean,
+  fallbackTitle?: string,
 ): SheetOpenProps {
   const display: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(props)) {
@@ -91,13 +95,27 @@ function toDisplayProps(
   }
   const aria = props.ariaLabel ?? props['aria-label']
   if (aria !== undefined) display['ariaLabel'] = aria
-  if (!includeTitle) delete display['title']
+  if (!includeTitle) {
+    // Erase, don't delete: the core MERGES props on update(), so deleting the key
+    // here leaves an earlier title in place, mountSlots rebuilds the default
+    // header underneath the React-owned one, and the stale <h2> keeps
+    // aria-labelledby — two headers and a name that doesn't match the visible one.
+    display['title'] = undefined
+    // The core can't fall back to `title` once it's erased, so carry the name
+    // across ourselves rather than leaving the dialog unnamed.
+    if (display['ariaLabel'] === undefined && fallbackTitle) {
+      display['ariaLabel'] = fallbackTitle
+    }
+  }
   return display as SheetOpenProps
 }
 
 export function createSheets(core: SheetCore = createSheetCore()): Sheets {
   const renderMap = new Map<number, SheetRenderFns>()
   const publicHandleById = new Map<number, SheetPublicHandle>()
+  // Last `title` seen per sheet. An update() patch that only sets `headerSlot`
+  // carries no title, but the dialog still needs a name — this is that memory.
+  const titleById = new Map<number, string>()
 
   function updateHandle(
     id: number,
@@ -108,24 +126,40 @@ export function createSheets(core: SheetCore = createSheetCore()): Sheets {
     if (Object.keys(renderFns).length) {
       renderMap.set(id, {...(renderMap.get(id) ?? {}), ...renderFns})
     }
+    if (next.title != null) titleById.set(id, next.title)
     // Title passes through only when there's no custom (React-owned) header.
     const hasCustomHeader = renderMap.get(id)?.headerSlot != null
-    coreHandle.update(toDisplayProps(next, !hasCustomHeader))
+    coreHandle.update(toDisplayProps(next, !hasCustomHeader, titleById.get(id)))
   }
 
   function open(props: SheetReactProps = {}): SheetPublicHandle {
-    const hasCustomHeader = props.headerSlot != null
     const strategy = props.strategy ?? 'reuse'
+
+    // A keyed re-open that omits headerSlot but passes a title would otherwise
+    // rebuild the default header under the live React-owned one, so the decision
+    // has to consult the sheet already on screen, not just this call's props.
+    const live =
+      props.key != null
+        ? core.getSnapshot().find((e) => e.key === props.key && !e.isClosing)
+        : undefined
+    const hasCustomHeader =
+      props.headerSlot != null ||
+      (live != null &&
+        strategy === 'update' &&
+        renderMap.get(live.id)?.headerSlot != null)
+    const fallbackTitle =
+      props.title ?? (live != null ? titleById.get(live.id) : undefined)
 
     let id = 0
     const coreOnExited = (): void => {
       props.onExited?.()
       renderMap.delete(id)
       publicHandleById.delete(id)
+      titleById.delete(id)
     }
 
     const coreHandle = core.open({
-      ...toDisplayProps(props, !hasCustomHeader),
+      ...toDisplayProps(props, !hasCustomHeader, fallbackTitle),
       onExited: coreOnExited,
     })
     id = coreHandle.id
@@ -135,6 +169,7 @@ export function createSheets(core: SheetCore = createSheetCore()): Sheets {
     if (existedBefore && strategy === 'reuse') {
       return publicHandleById.get(id)!
     }
+    if (props.title != null) titleById.set(id, props.title)
     if (existedBefore && strategy === 'update') {
       renderMap.set(id, {
         ...(renderMap.get(id) ?? {}),
@@ -170,6 +205,7 @@ export function createSheets(core: SheetCore = createSheetCore()): Sheets {
       core.__resetForTests()
       renderMap.clear()
       publicHandleById.clear()
+      titleById.clear()
     },
   }
 }

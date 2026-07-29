@@ -186,6 +186,53 @@ describe('gestures (mobile)', () => {
     expect(backdrop.style.opacity).toBe('0')
   })
 
+  it("a same-tick close() keeps data-sheet-state='closing' — the open rAF must not overwrite it", () => {
+    // open() schedules a rAF that stamps 'open'; a close() in the same tick has
+    // already stamped 'closing'. Writing 'open' over it unmatches every
+    // [data-sheet-state='closing'] rule and kills the exit animation.
+    vi.useFakeTimers()
+    const handle = core.open({title: 'A', content: () => 'body'})
+    const root = el<HTMLElement>('.sv-sheet')
+
+    handle.close()
+    expect(root.dataset['sheetState']).toBe('closing')
+
+    vi.advanceTimersByTime(50) // flush the open rAF
+    expect(root.dataset['sheetState']).toBe('closing')
+  })
+
+  it('a close() inside the entrance window is not yanked back by the settle timer', () => {
+    // closeDisabled arms lockDrag at settle, and the settle timer is never
+    // cancelled. A programmatic close() (unguarded by closeDisabled) between the
+    // open rAF and settle used to let that timer re-freeze the scroller at the
+    // OPEN snap point and pop the dim back to full, mid-exit.
+    vi.useFakeTimers()
+    const handle = core.open({title: 'A', closeDisabled: true, content: () => 'body'})
+    const scroll = el<HTMLElement>('.sv-sheet__scroll')
+    const backdrop = el<HTMLElement>('.sv-sheet__backdrop')
+    stubOffsetTop(el<HTMLElement>('.sv-sheet__panel'), 800)
+
+    vi.advanceTimersByTime(50) // past the open rAF — the settle timer is armed
+    handle.close()
+    vi.advanceTimersByTime(600) // the settle timer fires during/after the exit
+
+    expect(scroll.style.overflowY).toBe('')
+    expect(backdrop.style.opacity).not.toBe('1')
+  })
+
+  it("desktop: a same-tick close() also survives the open rAF", () => {
+    vi.useFakeTimers()
+    mm.setMobile(false)
+    const desktop = createSheetCore()
+    const handle = desktop.open({title: 'A', content: () => 'body'})
+    const root = el<HTMLElement>('.sv-sheet')
+
+    handle.close()
+    vi.advanceTimersByTime(50) // flush the open rAF
+    expect(root.dataset['sheetState']).toBe('closing')
+    desktop.__resetForTests()
+  })
+
   it('#5 — a sheet caught mid-open and dragged back down dismisses (no invisible modal)', () => {
     core.open({title: 'A', content: () => 'body'})
     const scroll = el<HTMLElement>('.sv-sheet__scroll')

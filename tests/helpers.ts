@@ -72,7 +72,8 @@ export function mockMatchMedia(initial: Partial<MediaState> = {}): MockMatchMedi
     }
   }
 
-  const saved = Object.getOwnPropertyDescriptor(window, 'matchMedia')
+  const savedDescriptor = Object.getOwnPropertyDescriptor(window, 'matchMedia')
+  const savedValue = window.matchMedia
   window.matchMedia = vi.fn(make) as typeof window.matchMedia
 
   return {
@@ -85,8 +86,20 @@ export function mockMatchMedia(initial: Partial<MediaState> = {}): MockMatchMedi
       emit()
     },
     restore(): void {
-      if (saved) Object.defineProperty(window, 'matchMedia', saved)
-      else delete (window as {matchMedia?: unknown}).matchMedia
+      // The test environment defines `matchMedia` as an accessor pair on window
+      // whose getter starts out undefined, so `window.matchMedia = mock` went
+      // through its SETTER — and re-applying the saved descriptor would hand back
+      // an accessor that still yields the mock. Drop the own property first, and
+      // only rebuild it if there was a real value to put back. Without this the
+      // mock leaks into every later suite in the file and silently puts them on
+      // the mobile path.
+      delete (window as {matchMedia?: unknown}).matchMedia
+      if (savedValue !== undefined) {
+        if (savedDescriptor) {
+          Object.defineProperty(window, 'matchMedia', savedDescriptor)
+        }
+        window.matchMedia = savedValue
+      }
     },
   }
 }

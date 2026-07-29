@@ -25,6 +25,68 @@ sheet without touching the file. Overrides apply in both light and dark:
 - **Motion** (defined in `base.css`): `--sheet-enter-duration`,
   `--sheet-enter-easing`, `--sheet-enter-duration-focus`, `--sheet-exit-duration`,
   `--sheet-backdrop-duration`
+- **Sizing** (defined in `base.css`): `--sheet-width`, `--sheet-width-sm|md|lg|xl`,
+  `--sheet-height`, `--sheet-height-sm|md|lg|xl`, `--sheet-inset`,
+  `--sheet-inset-desktop`, `--sheet-header-gap`
+
+## Sizing
+
+`size` picks a bucket; the bucket's dimensions are tokens. Like motion, they live in the
+**required** `base.css` — a sheet's dimensions are structural, not a skin.
+
+| Token                    | Default                     | Drives                                     |
+| ------------------------ | --------------------------- | ------------------------------------------ |
+| `--sheet-width-sm`       | `400px`                     | Desktop card width, `size: 'sm'`           |
+| `--sheet-width-md`       | `560px`                     | Desktop card width, `size: 'md'`           |
+| `--sheet-width-lg`       | `800px`                     | Desktop card width, `size: 'lg'`           |
+| `--sheet-width-xl`       | `1000px`                    | Desktop card width, `size: 'xl'`           |
+| `--sheet-height-sm`      | `auto`                      | Mobile card height, `size: 'sm'`           |
+| `--sheet-height-md`      | `65dvh`                     | Mobile card height, `size: 'md'`           |
+| `--sheet-height-lg`      | `100dvh − --sheet-inset`    | Mobile card height, `size: 'lg'`           |
+| `--sheet-height-xl`      | `100dvh − --sheet-inset`    | Mobile card height, `size: 'xl'`           |
+| `--sheet-inset`          | `40px`                      | Mobile gap above the card (its max-height) |
+| `--sheet-inset-desktop`  | `64px`                      | Desktop gap around the card (max width **and** height) |
+| `--sheet-header-gap`     | `16px`                      | Default-header row gap: icon↔title↔close   |
+
+Every width is clamped to `100vw − --sheet-inset-desktop`, and every mobile height to
+`100dvh − --sheet-inset`, **inside the library**. Override the token and you keep the
+clamp — which is the part that's easy to forget and breaks narrow desktop windows.
+
+### An arbitrary size
+
+`--sheet-width` and `--sheet-height`, with no suffix, sit in front of all four buckets:
+
+```css
+:root {
+  --sheet-width: 672px; /* every desktop sheet, whatever its `size` */
+}
+```
+
+::: warning These override every bucket
+Once `--sheet-width` is set, all four `size` values render at that width, and `size` only
+carries the mobile height (and vice-versa for `--sheet-height`). That's deliberate — it's
+what stops `size: 'sm'` from degenerating into a meaningless carrier for a width
+override — but it does mean the two are not per-bucket knobs.
+:::
+
+Per sheet, pass them through `style` — it applies to the root dialog, and custom
+properties inherit down to the card:
+
+```js
+sheets.open({
+  title: 'Wide report',
+  size: 'md', // still picks the mobile height
+  style: {'--sheet-width': '1180px'},
+})
+```
+
+A full-bleed mobile sheet is one token:
+
+```css
+:root {
+  --sheet-inset: 0px; /* card fills the viewport height on mobile */
+}
+```
 
 ## Motion
 
@@ -99,7 +161,7 @@ tokens, to pin the palette.
 
 Every part of the sheet DOM carries a stable attribute you can target from your CSS:
 
-- `[data-sheet-part="root|backdrop|scroll|panel|card|handle|header|content|footer|overlay|toplayer|default-header|title|close"]`
+- `[data-sheet-part="root|backdrop|scroll|spacer|panel|card|handle|header|content|footer|overlay|anchor-layer|toplayer|viewport-layer|default-header|icon|title|close"]`
 - `[data-sheet-state="opening|open|closing"]` on the root
 - `[data-sheet-size="sm|md|lg|xl"]` on the card
 - `[data-sheet-focus-open]` on the root — present when opened with `focusOnOpen`

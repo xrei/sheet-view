@@ -42,35 +42,47 @@ export function mountSlot(
   }
 }
 
-export function buildDefaultHeader(
-  title: string,
-  closeFn: () => void,
-  closeMuted: boolean,
-  closeHidden: boolean,
-  closeLabel = 'Close',
-  closeIcon?: SheetSlot,
-  ctx?: SheetContext,
-): HTMLElement {
+export interface DefaultHeaderOptions {
+  title: string
+  /**
+   * The stable icon node from `SheetSlots` — APPENDED (moved) here, never
+   * created here. mountSlots rebuilds this whole header on every `update()`, so
+   * a node created inside would be a fresh element each time and an external
+   * renderer's portal would keep writing into the detached previous one.
+   */
+  icon: HTMLElement
+  onClose: () => void
+  closeMuted: boolean
+  closeHidden: boolean
+  closeLabel: string
+  closeIcon?: SheetSlot | undefined
+  ctx: SheetContext
+}
+
+export function buildDefaultHeader(opts: DefaultHeaderOptions): HTMLElement {
   const header = createEl('div', 'sv-sheet__default-header', {
     'data-sheet-part': 'default-header',
   })
   const h2 = createEl('h2', 'sv-sheet__title', {'data-sheet-part': 'title'})
-  h2.textContent = title ?? ''
-  header.append(h2)
-  if (!closeHidden) {
+  h2.textContent = opts.title ?? ''
+  // Sibling of the <h2>, not a child, so an announced icon can't leak into the
+  // dialog's accessible name via aria-labelledby.
+  header.append(opts.icon, h2)
+  if (!opts.closeHidden) {
     const closeBtn = createEl('button', 'sv-sheet__close', {
       type: 'button',
-      'aria-label': closeLabel,
+      'aria-label': opts.closeLabel,
       'data-sheet-part': 'close',
       'data-sheet-close': '',
-      ...(closeMuted ? {'aria-disabled': 'true'} : {}),
+      ...(opts.closeMuted ? {'aria-disabled': 'true'} : {}),
     })
     // A custom glyph (node/SVG/string) replaces the default ×; the button keeps
     // its aria-label, so the accessible name is unchanged.
-    const icon = closeIcon != null && ctx ? resolveSlot(closeIcon, ctx) : null
-    if (icon) closeBtn.append(icon)
+    const glyph =
+      opts.closeIcon != null ? resolveSlot(opts.closeIcon, opts.ctx) : null
+    if (glyph) closeBtn.append(glyph)
     else closeBtn.textContent = '×'
-    closeBtn.addEventListener('click', () => closeFn())
+    closeBtn.addEventListener('click', () => opts.onClose())
     header.append(closeBtn)
   }
   return header
@@ -140,6 +152,10 @@ export function buildSheetDOM(props: SheetOpenProps): SheetDOM {
   const header = createEl('div', 'sv-sheet__header', {
     'data-sheet-part': 'header',
   })
+  // Built here, not in buildDefaultHeader, so its identity survives every header
+  // rebuild. It enters the DOM only when a default header is mounted, and
+  // `.sv-sheet__icon:empty` collapses it until something fills it.
+  const icon = createEl('span', 'sv-sheet__icon', {'data-sheet-part': 'icon'})
   const content = createEl('div', 'sv-sheet__content', {
     'data-sheet-part': 'content',
     'data-scrollable': 'true',
@@ -154,9 +170,20 @@ export function buildSheetDOM(props: SheetOpenProps): SheetDOM {
     'data-sheet-part': 'toplayer',
   })
 
-  card.append(handle, header, content, footer, overlay)
+  // Popover mount points. `anchored` is the card's LAST child, so it paints
+  // above every other card part with no z-index; `viewport` lives in the top
+  // layer. Both are display:contents — see base.css for why that matters.
+  const anchorLayer = createEl('div', 'sv-sheet__anchor-layer', {
+    'data-sheet-part': 'anchor-layer',
+  })
+  const viewportLayer = createEl('div', 'sv-sheet__viewport-layer', {
+    'data-sheet-part': 'viewport-layer',
+  })
+
+  card.append(handle, header, content, footer, overlay, anchorLayer)
   panel.append(card)
   scroll.append(closedSpacer, panel)
+  toplayer.append(viewportLayer)
   dialog.append(backdrop, scroll, toplayer)
 
   return {
@@ -166,6 +193,7 @@ export function buildSheetDOM(props: SheetOpenProps): SheetDOM {
     closedSpacer,
     panel,
     card,
-    slots: {header, content, footer, overlay, toplayer},
+    slots: {header, icon, content, footer, overlay, toplayer},
+    layers: {anchored: anchorLayer, viewport: viewportLayer},
   }
 }

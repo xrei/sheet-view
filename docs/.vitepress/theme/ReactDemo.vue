@@ -4,7 +4,9 @@ import {onBeforeUnmount, onMounted, ref} from 'vue'
 const props = defineProps({demo: {type: String, required: true}})
 
 const loaders = {
+  anchored: () => import('../../../examples/react/src/demos/AnchoredSelect'),
   basic: () => import('../../../examples/react/src/demos/Basic'),
+  native: () => import('../../../examples/react/src/demos/NativeControls'),
   footer: () => import('../../../examples/react/src/demos/Footer'),
   forced: () => import('../../../examples/react/src/demos/Forced'),
   form: () => import('../../../examples/react/src/demos/Form'),

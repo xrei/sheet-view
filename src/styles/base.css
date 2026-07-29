@@ -94,27 +94,89 @@
 
 /* Card — the visible surface. position: relative anchors overlay decorations;
    no overflow clip so those decorations can extend past its edges. */
+/* Card — the visible surface. `position: relative` is CONTRACT, not incidental:
+   it is the offsetParent that `layers.anchored` children position against.
+   `isolation: isolate` makes the card a stacking context at rest, so a consumer
+   z-index inside a slot can never cross a sheet-part boundary — and, crucially,
+   behaves the same at rest as it does mid-animation (a live transform already
+   made the card a stacking context, so order used to invert for 400ms). */
 .sv-sheet__card {
   position: relative;
+  isolation: isolate;
   width: 100%;
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
 
+/* ── Geometry ────────────────────────────────────────────────────────────────
+ * Card size per `size` bucket. Same shape as the Motion tokens below: each public
+ * token is read ONCE here, and every use site consumes only the private mirror —
+ * so a consumer override can't be defeated by a use site that forgot the fallback.
+ *
+ * `--sheet-width` / `--sheet-height` (no suffix) sit in FRONT of the per-bucket
+ * tokens, so setting one overrides every bucket at once and `size` then only
+ * carries the other axis. That's the arbitrary-size escape: `size` stays a
+ * four-value enum instead of degenerating into a carrier for a width override.
+ *
+ * The viewport clamps stay in here on purpose — `min(…, 100vw - inset)` is the
+ * part that's easy to forget when overriding, and forgetting it breaks narrow
+ * desktop windows.
+ */
+.sv-sheet {
+  /* Space between the viewport edge and the card. */
+  --_sheet-inset: var(--sheet-inset, 40px);
+  --_sheet-inset-desktop: var(--sheet-inset-desktop, 64px);
+
+  /* Mobile card height, per bucket. */
+  --_sheet-height-sm: var(--sheet-height, var(--sheet-height-sm, auto));
+  --_sheet-height-md: var(--sheet-height, var(--sheet-height-md, 65dvh));
+  --_sheet-height-lg: var(
+    --sheet-height,
+    var(--sheet-height-lg, calc(100dvh - var(--_sheet-inset)))
+  );
+  --_sheet-height-xl: var(
+    --sheet-height,
+    var(--sheet-height-xl, calc(100dvh - var(--_sheet-inset)))
+  );
+  --_sheet-max-height: calc(100dvh - var(--_sheet-inset));
+
+  /* Desktop card width, per bucket. */
+  --_sheet-width-sm: var(--sheet-width, var(--sheet-width-sm, 400px));
+  --_sheet-width-md: var(--sheet-width, var(--sheet-width-md, 560px));
+  --_sheet-width-lg: var(--sheet-width, var(--sheet-width-lg, 800px));
+  --_sheet-width-xl: var(--sheet-width, var(--sheet-width-xl, 1000px));
+  --_sheet-max-width: calc(100vw - var(--_sheet-inset-desktop));
+  --_sheet-max-height-desktop: calc(100vh - var(--_sheet-inset-desktop));
+
+  /* Default-header row gap. One token for the whole row: flex `gap` is uniform,
+     so icon↔title can't differ from title↔close without an extra wrapper, and
+     that would change a documented DOM surface. Structural, not skin — without
+     it the title and the close button touch — so it lives here, not in the theme
+     alongside --sheet-header-padding. */
+  --_sheet-header-gap: var(--sheet-header-gap, 16px);
+}
+
 /* Mobile size variants — card height inside the 100dvh panel. Scoped to mobile
-   so the desktop widths (below) aren't fighting a height. */
+   so the desktop widths (below) aren't fighting a height. Four separate rules,
+   not one: at (0,2,0) these beat an unlayered consumer utility (`max-h-full`),
+   where a single (0,1,0) rule would only tie and lose on source order. */
 @media (max-width: 767px) {
   .sv-sheet__card[data-sheet-size='sm'] {
-    height: auto;
-    max-height: calc(100dvh - 40px);
+    height: var(--_sheet-height-sm);
+    max-height: var(--_sheet-max-height);
   }
   .sv-sheet__card[data-sheet-size='md'] {
-    height: 65dvh;
+    height: var(--_sheet-height-md);
+    max-height: var(--_sheet-max-height);
   }
-  .sv-sheet__card[data-sheet-size='lg'],
+  .sv-sheet__card[data-sheet-size='lg'] {
+    height: var(--_sheet-height-lg);
+    max-height: var(--_sheet-max-height);
+  }
   .sv-sheet__card[data-sheet-size='xl'] {
-    height: calc(100dvh - 40px);
+    height: var(--_sheet-height-xl);
+    max-height: var(--_sheet-max-height);
   }
 }
 
@@ -130,7 +192,10 @@
   flex-shrink: 0;
 }
 
-/* Scrollable content area. No built-in padding — consumer bodies bring their own. */
+/* Scrollable content area. No built-in padding — consumer bodies bring their own.
+   Deliberately NO `position`: adding one would make this the containing block for
+   absolute descendants and re-arm this clip on them. A panel that must escape the
+   body belongs in `layers.anchored`, whose containing block is the card. */
 .sv-sheet__content {
   flex: 1;
   min-height: 0;
@@ -156,10 +221,44 @@
 }
 
 /* Top-layer escape hatch — last child of the <dialog>, so it's inside the modal
-   top layer and paints above backdrop + card. */
+   top layer and paints above backdrop + card. isolate for the same reason the
+   card does: a fixed paint order that doesn't depend on consumer z-index. */
 .sv-sheet__toplayer {
   position: fixed;
   inset: 0;
+  isolation: isolate;
+  pointer-events: none;
+}
+
+/* ── Popover mount points ────────────────────────────────────────────────
+ * Both are boxless. That is the whole design: a real `inset: 0` wrapper with
+ * pointer-events:auto would cover the viewport and swallow backdrop-dismiss AND
+ * drag-to-close, while `display: contents` generates no box to hit-test yet still
+ * passes inherited pointer-events down to children, which do generate boxes.
+ */
+
+/* Anchored panels — inside the card, so they are unclipped (the card has no
+   overflow), they ride the card through the entrance/drag/exit with zero
+   repositioning, and a press here is inside the card, so it never dismisses.
+   Children MUST be positioned: a static child becomes a flex item of the card. */
+.sv-sheet__anchor-layer {
+  display: contents;
+}
+
+/* Viewport-anchored overlays — toasts, palettes. Re-arms pointer events for its
+   children, so consumers no longer hand-write `pointer-events: auto` per panel. */
+.sv-sheet__viewport-layer {
+  display: contents;
+  pointer-events: auto;
+}
+
+/* A closing sheet must not stay clickable. The close path arms
+   `.sv-sheet__scroll` inline (covering the card and the anchor layer inside it),
+   but the top layer escapes that — and its children may have re-armed pointer
+   events themselves, hence the descendant selector. Unlayered (0,2,0)/(0,2,1),
+   so a consumer's layered utility can't win it back. */
+.sv-sheet[data-sheet-state='closing'] .sv-sheet__toplayer,
+.sv-sheet[data-sheet-state='closing'] .sv-sheet__toplayer * {
   pointer-events: none;
 }
 
@@ -168,7 +267,19 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--_sheet-header-gap);
+}
+/* Leading glyph. inline-flex + shrink-proof so it can't be squeezed by a long
+   title; sizing is the consumer's (their SVG sizes itself). Empty until they
+   fill it — the React bridge portals in a commit later — so collapse it,
+   the same contract as .sv-sheet__footer:empty. */
+.sv-sheet__icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+}
+.sv-sheet__icon:empty {
+  display: none;
 }
 .sv-sheet__title {
   flex: 1;
@@ -226,20 +337,22 @@
   }
   .sv-sheet__card {
     height: auto;
-    max-height: calc(100vh - 64px);
+    max-height: var(--_sheet-max-height-desktop);
     margin: 0 auto;
   }
+  /* Every bucket carries the clamp, including sm/md — a no-op at the defaults
+     (100vw - 64px is well past 560px at ≥768px), a real guard once overridden. */
   .sv-sheet__card[data-sheet-size='sm'] {
-    width: 400px;
+    width: min(var(--_sheet-width-sm), var(--_sheet-max-width));
   }
   .sv-sheet__card[data-sheet-size='md'] {
-    width: 560px;
+    width: min(var(--_sheet-width-md), var(--_sheet-max-width));
   }
   .sv-sheet__card[data-sheet-size='lg'] {
-    width: min(800px, calc(100vw - 64px));
+    width: min(var(--_sheet-width-lg), var(--_sheet-max-width));
   }
   .sv-sheet__card[data-sheet-size='xl'] {
-    width: min(1000px, calc(100vw - 64px));
+    width: min(var(--_sheet-width-xl), var(--_sheet-max-width));
   }
 
   /* Desktop dim is toggled by state; colour/blur live in the theme, the fade in

@@ -28,9 +28,11 @@
  *   skin     --sheet-title-size --sheet-title-weight --sheet-close-size
  *            --sheet-close-radius --sheet-handle-radius --sheet-handle-opacity
  *            --sheet-header-padding
- * The motion tokens (--sheet-enter-duration, …) are public too, but they belong to
- * base.css — see its Motion section. The `--_sheet-*` (underscore) tokens are
- * PRIVATE internals, not part of the public contract; don't set them.
+ * The motion tokens (--sheet-enter-duration, …) and the sizing tokens
+ * (--sheet-width*, --sheet-height*, --sheet-inset*, --sheet-header-gap) are public
+ * too, but they belong to base.css — see its Motion and Geometry sections. The
+ * `--_sheet-*` (underscore) tokens are PRIVATE internals, not part of the public
+ * contract; don't set them.
  */
 
 @layer sheet-view {
