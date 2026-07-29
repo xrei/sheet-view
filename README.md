@@ -1,7 +1,7 @@
 # sheet-view
 
 [![npm version](https://img.shields.io/npm/v/sheet-view.svg)](https://www.npmjs.com/package/sheet-view)
-[![min+gzip](https://img.shields.io/badge/min%2Bgzip-3.9%20kB-brightgreen.svg)](https://bundlephobia.com/package/sheet-view)
+[![min+gzip](https://img.shields.io/badge/min%2Bgzip-4.4%20kB-brightgreen.svg)](https://bundlephobia.com/package/sheet-view)
 [![license](https://img.shields.io/npm/l/sheet-view.svg)](./LICENSE)
 
 A headless bottom-sheet / modal built on browser-native primitives: native
@@ -16,7 +16,7 @@ portals your content into it.
   adapter lives at `sheet-view/react`.
 - **Native a11y for free** — `showModal()` provides the focus-trap, inert
   background, Escape handling, and focus restoration.
-- **Tiny** — 3.9 kB min+gzip for the core, 4.7 kB with the React adapter, zero
+- **Tiny** — 4.4 kB min+gzip for the core, 5.9 kB with the React adapter, zero
   runtime dependencies. Smaller than a bare Radix dialog with no sheet
   behaviour at all.
 - **TypeScript-first** — types ship out of the box. ESM-only.

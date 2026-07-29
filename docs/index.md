@@ -18,8 +18,8 @@ features:
     details: Drag-to-close rides CSS scroll-snap and compositor transforms — no pointer-event bookkeeping, no main-thread jank.
   - title: Native a11y for free
     details: showModal() provides the focus-trap, inert background, Escape handling, and focus restoration — no JS re-implementation.
-  - title: Tiny — 4.7 kB gzip
-    details: 3.9 kB for the core, 4.7 kB with the React adapter — smaller than a bare Radix dialog. Zero dependencies, ESM-only, TypeScript types included.
+  - title: Tiny — 5.9 kB gzip
+    details: 4.4 kB for the core, 5.9 kB with the React adapter — smaller than a bare Radix dialog. Zero dependencies, ESM-only, TypeScript types included.
   - title: Headless
     details: A tiny required structural stylesheet, an optional default theme, or bring your own. Style via CSS custom properties and stable data-attributes.
   - title: Framework-agnostic core
