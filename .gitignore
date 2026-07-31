@@ -10,3 +10,4 @@ tmp/
 # Docs (VitePress build output)
 docs/.vitepress/dist/
 docs/.vitepress/cache/
+launch.json
