@@ -11,6 +11,8 @@ const loaders = {
   forced: () => import('../../../examples/react/src/demos/Forced'),
   form: () => import('../../../examples/react/src/demos/Form'),
   keyed: () => import('../../../examples/react/src/demos/KeyedUpdate'),
+  rewrite: () => import('../../../examples/react/src/demos/Rewrite'),
+  stacked: () => import('../../../examples/react/src/demos/Stacked'),
   toast: () => import('../../../examples/react/src/demos/TopLayerToast'),
 }
 

@@ -1,5 +1,6 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {act, fireEvent, render, screen} from '@testing-library/react'
+import {createPortal} from 'react-dom'
 
 import {SheetHost} from '../src/react/SheetHost'
 import {SheetPortal} from '../src/react/SheetPortal'
@@ -181,7 +182,10 @@ describe('popovers inside a sheet', () => {
           </SheetPortal>
         ),
       })
-      const wrapper = part('viewport-layer').firstElementChild as HTMLElement
+      // :not(sentinel) — the layer's first element child is its permanent sentinel.
+      const wrapper = part('viewport-layer').querySelector(
+        ':scope > :not([data-sheet-part="layer-sentinel"])',
+      ) as HTMLElement
       expect(wrapper.style.display).toBe('contents')
       expect(wrapper.style.pointerEvents).toBe('auto')
     })
@@ -218,6 +222,77 @@ describe('popovers inside a sheet', () => {
       expect(screen.getByText('toast')).toBeInTheDocument()
     })
 
+    it('owns one stable host — a sheet opening over a live toast and closing never remounts it', () => {
+      // The old wiring portaled straight into the layer node, so every target
+      // change (sheet opens over the toast, sheet closes from under it) changed
+      // createPortal's container and React rebuilt the subtree — a live toast
+      // replayed its entrance twice per sheet.
+      vi.useFakeTimers()
+      render(
+        <SheetPortal layer="viewport" instance={sheets}>
+          <span>page toast</span>
+        </SheetPortal>,
+      )
+      const toast = screen.getByText('page toast')
+      const host = toast.parentElement!
+      expect(host.parentElement).toBe(document.body)
+      expect(host.style.display).toBe('contents')
+
+      const handle = open({title: 'A'})
+      // Same nodes, MOVED into the sheet's top layer — not a portal remount.
+      expect(screen.getByText('page toast')).toBe(toast)
+      expect(toast.parentElement).toBe(host)
+      expect(host.parentElement).toBe(part('viewport-layer'))
+
+      act(() => handle.close())
+      act(() => {
+        vi.advanceTimersByTime(320)
+      })
+
+      // Back on the page, still the same nodes, connected the whole way:
+      // teardown parked the occupied layer (host inside) in the receiver, and
+      // the target flip moved the host home from there — no detour through
+      // detached DOM.
+      expect(screen.getByText('page toast')).toBe(toast)
+      expect(toast.parentElement).toBe(host)
+      expect(host.isConnected).toBe(true)
+      expect(host.closest('dialog')).toBeNull()
+      expect(host.parentElement).toBe(document.body)
+
+      // Run the rescue sweep so the parked layer doesn't leak into later tests.
+      act(() => {
+        vi.advanceTimersByTime(1000)
+      })
+      vi.useRealTimers()
+    })
+
+    it('a React portal straight into the layer node survives teardown', () => {
+      // The layer node is that portal's container. Teardown parks the occupied
+      // layer WHOLE, so React's commit-phase container.removeChild(child) —
+      // which no error boundary catches — always finds the child in place.
+      vi.useFakeTimers()
+      const handle = open({title: 'A'})
+      const layer = part('viewport-layer')
+      const direct = render(<>{createPortal(<div>direct child</div>, layer)}</>)
+      const child = screen.getByText('direct child')
+
+      act(() => handle.close())
+      act(() => {
+        vi.advanceTimersByTime(320)
+      })
+      expect(child.isConnected).toBe(true)
+      expect(child.parentElement).toBe(layer)
+
+      // Even after the sweep drops the unclaimed layer, the pair stays intact —
+      act(() => {
+        vi.advanceTimersByTime(1000)
+      })
+      expect(child.parentElement).toBe(layer)
+      // — so React's own unmount (the old crash site) still works.
+      expect(() => direct.unmount()).not.toThrow()
+      vi.useRealTimers()
+    })
+
     it('falls back to document.body when no sheet is open', () => {
       render(
         <SheetPortal layer="viewport">
@@ -239,6 +314,82 @@ describe('popovers inside a sheet', () => {
       expect(warn).toHaveBeenCalled()
       expect(String(warn.mock.calls[0]?.[0])).toContain('anchored')
       warn.mockRestore()
+    })
+  })
+
+  // Third-party portal libs treat a container they were handed as their own:
+  // Headless UI deletes it once it has no children, then re-hangs the
+  // disconnected node off <body> — outside the top-layer <dialog>, where the
+  // browser paints it under the sheet and its dim. The sentinel starves the
+  // "empty ⇒ delete" heuristic; the MutationObserver guard re-seats anything
+  // that gets moved, removed, or cleared regardless of which library did it.
+  describe('layer self-healing (adopted-container portal libs)', () => {
+    // jsdom delivers MutationObserver callbacks as microtasks; one macrotask
+    // hop is enough to flush them.
+    const flushMO = (): Promise<void> => new Promise((r) => setTimeout(r, 0))
+
+    it('each layer carries a permanent invisible sentinel, so it never looks empty', () => {
+      open({title: 'A'})
+      for (const name of ['anchor-layer', 'viewport-layer']) {
+        const sentinel = part(name).querySelector<HTMLElement>(
+          ':scope > [data-sheet-part="layer-sentinel"]',
+        )
+        expect(sentinel).not.toBeNull()
+        expect(sentinel!.style.display).toBe('none') // inline — no stylesheet needed
+        expect(sentinel!.getAttribute('aria-hidden')).toBe('true')
+      }
+    })
+
+    it('a layer exiled to <body> is re-seated into the card, content and all', async () => {
+      open({
+        title: 'A',
+        content: () => (
+          <SheetPortal>
+            <button type="button">Option</button>
+          </SheetPortal>
+        ),
+      })
+      const layer = part('anchor-layer')
+      document.body.appendChild(layer) // what Headless UI does to an adopted container
+      await flushMO()
+      expect(layer.parentElement).toBe(part('card'))
+      expect(part('card').lastElementChild).toBe(layer) // back in its paint slot
+      expect(screen.getByText('Option')).toBeInTheDocument()
+    })
+
+    it('a removed viewport layer is re-seated into the top layer', async () => {
+      open({title: 'A'})
+      const layer = part('viewport-layer')
+      layer.remove()
+      await flushMO()
+      expect(layer.parentElement).toBe(part('toplayer'))
+    })
+
+    it('a cleared layer gets its sentinel back', async () => {
+      open({title: 'A'})
+      const layer = part('anchor-layer')
+      layer.replaceChildren()
+      await flushMO()
+      expect(
+        layer.querySelector(':scope > [data-sheet-part="layer-sentinel"]'),
+      ).not.toBeNull()
+    })
+
+    it('the guard disconnects with the sheet — no repair after teardown', async () => {
+      vi.useFakeTimers()
+      const handle = open({title: 'A'})
+      const layer = part('anchor-layer')
+      act(() => {
+        handle.close()
+      })
+      act(() => {
+        vi.advanceTimersByTime(320)
+      })
+      vi.useRealTimers()
+      document.body.appendChild(layer)
+      await flushMO()
+      expect(layer.parentElement).toBe(document.body)
+      layer.remove()
     })
   })
 

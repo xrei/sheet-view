@@ -39,6 +39,58 @@ describe('createSheetCore', () => {
     expect(ids).toEqual([1, 2])
   })
 
+  it('teardown parks occupied layers whole — content stays connected, in its parent', () => {
+    vi.useFakeTimers()
+    const handle = core.open({title: 'A'})
+    const survivor = document.createElement('div')
+    survivor.textContent = 'toast'
+    handle.layers.viewport.appendChild(survivor)
+
+    handle.close()
+    vi.advanceTimersByTime(320)
+
+    // Still connected, still a child of ITS layer — the layer node itself was
+    // parked, so a foreign reconciler can still removeChild its own content.
+    expect(survivor.isConnected).toBe(true)
+    expect(survivor.parentElement).toBe(handle.layers.viewport)
+    expect(survivor.closest('[data-sheet-part="layer-rescue"]')).not.toBeNull()
+    // The empty anchored layer left with the dialog.
+    expect(handle.layers.anchored.isConnected).toBe(false)
+
+    // A claimed node (moved out by a subscriber) is left alone by the sweep…
+    const claimed = survivor
+    document.body.appendChild(claimed)
+    vi.advanceTimersByTime(1000)
+    expect(claimed.isConnected).toBe(true)
+    claimed.remove()
+  })
+
+  it('the rescue sweep drops content nobody claimed (the old lifecycle)', () => {
+    vi.useFakeTimers()
+    const handle = core.open({title: 'A'})
+    const abandoned = document.createElement('div')
+    handle.layers.viewport.appendChild(abandoned)
+
+    handle.close()
+    vi.advanceTimersByTime(320)
+    expect(abandoned.isConnected).toBe(true) // parked…
+
+    vi.advanceTimersByTime(1000)
+    expect(abandoned.isConnected).toBe(false) // …then swept, like before
+    // Its parent link survived even the sweep:
+    expect(abandoned.parentElement).toBe(handle.layers.viewport)
+  })
+
+  it('teardown of an empty sheet parks nothing', () => {
+    vi.useFakeTimers()
+    const handle = core.open({title: 'A'})
+    handle.close()
+    vi.advanceTimersByTime(320)
+    // Both layers (sentinels only) leave with the dialog — nothing to park.
+    expect(handle.layers.anchored.isConnected).toBe(false)
+    expect(handle.layers.viewport.isConnected).toBe(false)
+  })
+
   it('handle.close() flips isClosing without removing immediately', () => {
     const handle = core.open({title: 'A'})
     handle.close()
@@ -272,14 +324,18 @@ describe('createSheetCore', () => {
     const onExited = vi.fn()
     core.open({title: 'A', onExited})
     const dialog = document.querySelector('dialog.sv-sheet')!
-    expect(document.body.style.overflow).toBe('clip') // lock acquired
+    expect(
+      document.documentElement.hasAttribute('data-sheet-scroll-lock'),
+    ).toBe(true) // lock acquired
 
     // The browser closed it out from under us (<form method="dialog">, force-close).
     dialog.dispatchEvent(new Event('close'))
     vi.advanceTimersByTime(320)
 
     expect(core.getSnapshot()).toHaveLength(0)
-    expect(document.body.style.overflow).toBe('') // lock released — page not frozen
+    expect(
+      document.documentElement.hasAttribute('data-sheet-scroll-lock'),
+    ).toBe(false) // lock released — page not frozen
     expect(onExited).toHaveBeenCalledTimes(1)
   })
 

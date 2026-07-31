@@ -43,4 +43,6 @@ export interface SheetDOM {
   card: HTMLElement
   slots: SheetSlots
   layers: SheetLayers
+  /** Permanent invisible child per layer — the "never looks empty" guarantee. */
+  sentinels: {anchored: HTMLElement; viewport: HTMLElement}
 }

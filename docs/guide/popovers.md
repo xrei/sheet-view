@@ -67,6 +67,16 @@ becomes a flex item of the card and adds a row to it. Give your panel `position:
 absolute` (layer 1) or `fixed` (layer 2).
 :::
 
+::: tip Safe to hand to portal libraries
+Some portal implementations treat a container node they were handed as their own:
+Headless UI, for one, deletes the container once it has no children and re-parents a
+disconnected one into `<body>` — which, for a node from inside a `showModal()` dialog,
+means it silently starts painting *under* the sheet. The layers defend themselves: each
+keeps a permanent invisible sentinel child (so it never looks empty), and a per-sheet
+observer re-seats a layer that any library removes, moves, or clears. Pass
+`layers.anchored` / `layers.viewport` to any portal prop without ceremony.
+:::
+
 ## Positioning is yours
 
 The library ships no positioning: no `placement`, no flip logic, no dependency. Your
@@ -153,6 +163,14 @@ and flipping the target mid-exit would reparent your content and restart its ani
 Ask `useSheetLayout().isClosing` for the second question, or let `<SheetPortal>` handle it
 (it unmounts on close unless you pass `keepOnClose`).
 
+::: tip Reparenting is live — content survives sheets coming and going
+`<SheetPortal>` always portals into one stable host node it owns; a target change only
+*moves* the host (state-preserving `moveBefore` where available), so React never
+remounts the subtree — animations, focus and media survive. On close, teardown parks
+occupied layers in a connected receiver before detaching the dialog, so the move home
+never passes through detached DOM.
+:::
+
 Below `<SheetPortal>` and `useSheetPortalTarget()` sits the raw top-layer node,
 `useSheetLayout().slots.toplayer` (`handle.slots.toplayer` in vanilla). You
 almost certainly don't want it: it is `pointer-events: none`, so anything you portal in has
@@ -173,3 +191,7 @@ const off = sheet.onPhase((phase) => {
   if (phase === 'settled') reposition()
 })
 ```
+
+A layer child that should outlive the sheet is not detached with the dialog: teardown
+parks an occupied layer — still connected — in a receiver first. Re-home yours in
+`onExited`; anything left unclaimed is dropped after a short grace period.

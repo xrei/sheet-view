@@ -3,6 +3,7 @@ import {devWarn} from './dev'
 import {setPhase} from './phase'
 import {scrollLock, zoomLock} from './locks'
 import {applyRootStyle, buildDefaultHeader, buildSheetDOM, mountSlot} from './dom'
+import {guardLayers, rescueLayers} from './layer'
 import {
   blurFocusedDescendant,
   makeIsMobile,
@@ -221,6 +222,9 @@ export function createSheetCore(options: SheetCoreOptions = {}): SheetCore {
         entry.cleanups.length = 0
         entry.phaseListeners.clear()
 
+        // After the cleanups, so the layer guard is already disconnected.
+        rescueLayers(entry.layers)
+
         const idx = stack.indexOf(entry)
         if (idx >= 0) stack.splice(idx, 1)
         const key = entry.props.key
@@ -331,6 +335,7 @@ export function createSheetCore(options: SheetCoreOptions = {}): SheetCore {
     }
     scrollLock.acquire()
     if (useZoomLock) zoomLock.acquire()
+    entry.cleanups.push(guardLayers(dom))
     setupCloseHandlers(entry, () => requestClose(entry))
     setupDragToClose(
       entry,

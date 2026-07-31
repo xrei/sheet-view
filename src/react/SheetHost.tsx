@@ -2,12 +2,19 @@ import {useMemo, useSyncExternalStore} from 'react'
 import type {ErrorInfo, ReactNode} from 'react'
 import {createPortal} from 'react-dom'
 
-import type {SheetContext, SheetEntrySnapshot} from '../core/types'
+import type {SheetEntrySnapshot} from '../core/types'
 import {SheetLayoutContext} from './SheetLayoutContext'
 import type {SheetLayoutValue} from './SheetLayoutContext'
 import {SlotBoundary} from './SlotBoundary'
-import {sheets as defaultSheets} from './sheets'
-import type {ReactSlot, SheetRenderFns, Sheets} from './sheets'
+import {RENDER_KEYS, sheets as defaultSheets} from './sheets'
+import type {
+  ReactSlot,
+  SheetPublicHandle,
+  SheetReactContext,
+  SheetReactProps,
+  SheetRenderFns,
+  Sheets,
+} from './sheets'
 
 // Stable empty snapshot so getSnapshot === the server snapshot during SSR /
 // hydration (no portals against DOM that doesn't exist on the server).
@@ -36,12 +43,13 @@ export function SheetHost({
   instance = defaultSheets,
   onSlotError,
 }: SheetHostProps): ReactNode {
-  const {subscribe, getSnapshot, getRenderFns} = instance.__host
+  const {subscribe, getSnapshot, getRenderFns, getHandle} = instance.__host
   const entries = useSyncExternalStore(subscribe, getSnapshot, serverSnapshot)
   return entries.map((entry) => (
     <SheetPortals
       key={entry.id}
       entry={entry}
+      publicHandle={getHandle(entry.id)}
       getRenderFns={getRenderFns}
       onSlotError={onSlotError}
     />
@@ -50,6 +58,7 @@ export function SheetHost({
 
 interface SheetPortalsProps {
   entry: SheetEntrySnapshot
+  publicHandle: SheetPublicHandle | undefined
   getRenderFns: (id: number) => SheetRenderFns | undefined
   onSlotError: SheetSlotErrorHandler | undefined
 }
@@ -64,22 +73,38 @@ function SlotRender({
   ctx,
 }: {
   slot: ReactSlot
-  ctx: SheetContext
+  ctx: SheetReactContext
 }): ReactNode {
   return typeof slot === 'function'
-    ? (slot as (c: SheetContext) => ReactNode)(ctx)
+    ? (slot as (c: SheetReactContext) => ReactNode)(ctx)
     : (slot ?? null)
 }
 
 function SheetPortals({
   entry,
+  publicHandle,
   getRenderFns,
   onSlotError,
 }: SheetPortalsProps): ReactNode {
   const {slots, handle, layers, card, scroll, phase, isClosing} = entry
-  const ctx = useMemo<SheetContext>(
-    () => ({close: handle.close, update: handle.update}),
-    [handle],
+  // The ctx `update` MUST be the facade's, not the core handle's: a factory
+  // calling `update({content: <Jsx/>})` through the core would hand mountSlot an
+  // object it can't resolve, which replaceChildren()s the slot to empty — wiping
+  // the portal DOM React is rendering into and crashing the host root. The
+  // fallback (no facade handle — shouldn't happen for a rendered entry) strips
+  // the slot keys before the core for the same reason.
+  const ctx = useMemo<SheetReactContext>(
+    () => ({
+      close: handle.close,
+      update:
+        publicHandle?.update ??
+        ((next: Partial<SheetReactProps>): void => {
+          const display = {...next}
+          for (const k of RENDER_KEYS) delete display[k]
+          handle.update(display as Parameters<typeof handle.update>[0])
+        }),
+    }),
+    [handle, publicHandle],
   )
   const layout = useMemo<SheetLayoutValue>(
     () => ({card, content: slots.content, scroll, slots, layers, phase, isClosing}),

@@ -286,6 +286,14 @@ stays frozen for the rest of the file.
 
 - **Client-only `open()`.** `open()` touches `document`; call it in the browser, not
   during SSR. `<SheetHost>` itself is SSR-safe (renders nothing on the server).
+- **The scroll lock is `data-sheet-scroll-lock` on `<html>`.** While any sheet is open
+  the core sets this attribute (value = number of open sheets) and `base.css` applies
+  the actual `overflow: clip` / body pin. Nothing is ever written to
+  `html.style.overflow` or `body.style.overflow`, so third-party scroll locks
+  (Headless UI, body-scroll-lock, …) that save/restore those inline registers compose
+  with the sheet in any open/close order. The attribute is a stable styling hook;
+  the `data-sheet-scroll-gap` / `data-sheet-scroll-pin` attributes and `--_sheet-lock-*`
+  properties beside it are internal.
 - **Drag-to-dismiss is from the header / grabber.** The content area uses
   `overscroll-behavior: contain`, so scrolling a long body never dismisses the sheet.
   This is deliberate — a long read shouldn't end in an accidental close.

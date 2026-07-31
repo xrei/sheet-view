@@ -117,7 +117,9 @@ describe('motion phase', () => {
       expect(() => handle.close()).not.toThrow()
       vi.advanceTimersByTime(320)
       expect(core.getSnapshot()).toHaveLength(0)
-      expect(document.documentElement.style.overflow).toBe('')
+      expect(
+        document.documentElement.hasAttribute('data-sheet-scroll-lock'),
+      ).toBe(false)
       expect(error).toHaveBeenCalled()
       error.mockRestore()
     })

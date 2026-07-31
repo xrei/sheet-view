@@ -2,6 +2,7 @@ export {createSheets, sheets} from './react/sheets'
 export type {
   Sheets,
   SheetReactProps,
+  SheetReactContext,
   SheetPublicHandle,
   SheetRenderFns,
   SheetsHostBinding,

@@ -1,15 +1,21 @@
 import type {ReactNode} from 'react'
 
 import {createSheetCore, sheetCore} from '../core/sheetCore'
-import type {
-  SheetContext,
-  SheetCore,
-  SheetHandle,
-  SheetOpenProps,
-} from '../core/types'
+import type {SheetCore, SheetHandle, SheetOpenProps} from '../core/types'
+
+/**
+ * The `{close, update}` ctx handed to React slot factories. Its `update` is the
+ * FACADE's (accepts `ReactNode` slots), not the core's — a ReactNode routed into
+ * the core would resolve to nothing and wipe the very portal DOM React is
+ * rendering the slot into.
+ */
+export interface SheetReactContext {
+  close: () => void
+  update: (next: Partial<SheetReactProps>) => void
+}
 
 /** A React slot: a node, or a factory receiving the sheet's `{close, update}` ctx. */
-export type ReactSlot = ReactNode | ((ctx: SheetContext) => ReactNode)
+export type ReactSlot = ReactNode | ((ctx: SheetReactContext) => ReactNode)
 
 type DisplayProps = Omit<
   SheetOpenProps,
@@ -48,6 +54,8 @@ export interface SheetsHostBinding {
   subscribe: SheetCore['subscribe']
   getSnapshot: SheetCore['getSnapshot']
   getRenderFns: (id: number) => SheetRenderFns | undefined
+  /** The facade handle for a sheet — the ctx `update` React slots must receive. */
+  getHandle: (id: number) => SheetPublicHandle | undefined
 }
 
 /** The imperative facade returned by `createSheets(...)`. */
@@ -62,7 +70,8 @@ export interface Sheets {
   __resetForTests: () => void
 }
 
-const RENDER_KEYS = [
+/** @internal The prop keys that hold React slots (stripped before the core). */
+export const RENDER_KEYS = [
   'headerSlot',
   'icon',
   'closeIcon',
@@ -199,6 +208,7 @@ export function createSheets(core: SheetCore = createSheetCore()): Sheets {
       subscribe: core.subscribe,
       getSnapshot: core.getSnapshot,
       getRenderFns: (id) => renderMap.get(id),
+      getHandle: (id) => publicHandleById.get(id),
     },
     __resetForTests(): void {
       core.__resetForTests()

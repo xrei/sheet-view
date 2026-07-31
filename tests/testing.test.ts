@@ -221,7 +221,8 @@ describe('a sheet under the shim', () => {
   it('tears down and releases the page when the dialog closes natively', () => {
     vi.useFakeTimers()
     core.open({title: 'A'})
-    expect(document.documentElement.style.overflow).toBe('clip')
+    const html = document.documentElement
+    expect(html.hasAttribute('data-sheet-scroll-lock')).toBe(true)
 
     // The native close path the shim's `close` event drives — omit that event in
     // a hand-rolled shim and the page stays locked forever.
@@ -230,7 +231,6 @@ describe('a sheet under the shim', () => {
     vi.advanceTimersByTime(320)
 
     expect(core.getSnapshot()).toHaveLength(0)
-    expect(document.documentElement.style.overflow).toBe('')
-    expect(document.body.style.overflow).toBe('')
+    expect(html.hasAttribute('data-sheet-scroll-lock')).toBe(false)
   })
 })

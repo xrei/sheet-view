@@ -174,6 +174,28 @@ describe('CSS contract', () => {
     )
   })
 
+  it('the scroll lock is attribute + rule, so it composes with third-party inline locks', () => {
+    // Headless UI (and body-scroll-lock, …) save/restore html.style.overflow and
+    // read it back to decide whether they hold a lock. Our lock must therefore
+    // never live in that register: base.css owns the value, locks.ts only flips
+    // the attribute. No !important — a foreign inline lock may legitimately win
+    // the register while both are active, and either value locks.
+    const css = base.replace(/\/\*[\s\S]*?\*\//g, '')
+    expect(css).toMatch(
+      /html\[data-sheet-scroll-lock\]\[data-sheet-scroll-lock\]\s*\{\s*overflow: clip;\s*\}/,
+    )
+    expect(css).toMatch(
+      /html\[data-sheet-scroll-lock\]\[data-sheet-scroll-lock\] body\s*\{\s*overflow: clip;\s*\}/,
+    )
+    expect(css).toMatch(
+      /html\[data-sheet-scroll-gap\]\[data-sheet-scroll-gap\] body\s*\{\s*padding-right: var\(--_sheet-lock-pr\);\s*\}/,
+    )
+    expect(css).toMatch(
+      /html\[data-sheet-scroll-pin\]\[data-sheet-scroll-pin\] body\s*\{\s*position: fixed;\s*top: var\(--_sheet-lock-top\);/,
+    )
+    expect(css).not.toContain('!important')
+  })
+
   it('the top layer goes inert while closing — it escapes the inline close guard', () => {
     const css = base.replace(/\/\*[\s\S]*?\*\//g, '')
     expect(css).toMatch(

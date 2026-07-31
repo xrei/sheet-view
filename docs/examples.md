@@ -126,6 +126,42 @@ A `closeDisabled` sheet: the X, backdrop, Escape, and drag are all blocked.
 
 </DemoPanel>
 
+### Stacked sheets
+
+`open()` is a push — each call opens a new sheet over the current one, to any depth.
+The stacking is the native `showModal()` top layer, so it needs no z-index and no
+coordination: the top sheet holds the focus trap, Escape closes it alone, focus
+returns to the button that opened it, and the sheets underneath stay inert until
+they're on top again.
+
+<DemoPanel>
+<template #preview>
+
+<ReactDemo demo="stacked" />
+
+</template>
+
+<<< ../examples/react/src/demos/Stacked.tsx
+
+</DemoPanel>
+
+### Rewrite an open sheet
+
+The `{update}` ctx (or the handle's `update()`) merges new props into the open
+sheet in place: title, size, per-instance tokens, even the whole body — same
+dialog, no re-entrance animation.
+
+<DemoPanel>
+<template #preview>
+
+<ReactDemo demo="rewrite" />
+
+</template>
+
+<<< ../examples/react/src/demos/Rewrite.tsx
+
+</DemoPanel>
+
 ### Anchored dropdown
 
 A panel anchored to a trigger inside the scrolling body. `<SheetPortal>` mounts it in

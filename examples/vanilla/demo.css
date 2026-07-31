@@ -71,6 +71,13 @@
 .demo-body {
   padding: 20px;
 }
+/* button row inside a sheet body — unscoped like .demo-btn, because sheet
+   content renders in the top-layer dialog, outside the .sv-demo host */
+.demo-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
 .demo-body p {
   margin: 0 0 12px;
 }

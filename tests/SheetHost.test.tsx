@@ -253,4 +253,40 @@ describe('SheetHost', () => {
     expect(onClose).not.toHaveBeenCalled()
     expect(onCloseAttempt).toHaveBeenCalledTimes(1)
   })
+
+  it('the slot ctx update accepts ReactNode slots (it is the facade, not the core)', () => {
+    // The regression: SheetPortals used to hand factories the CORE handle's
+    // update, so `update({content: <Jsx/>})` reached mountSlot as an object it
+    // can't resolve — which replaceChildren()'d the slot to empty, wiping the
+    // portal DOM React was rendering into and crashing the host root.
+    open({
+      title: 'A',
+      content: ({update}) => (
+        <button
+          onClick={() =>
+            update({content: <p>Swapped body</p>, title: 'Rewritten'})
+          }
+        >
+          Swap
+        </button>
+      ),
+    })
+
+    fireEvent.click(screen.getByText('Swap'))
+
+    expect(screen.getByText('Swapped body')).toBeInTheDocument()
+    expect(screen.queryByText('Swap')).toBeNull()
+    expect(screen.getByText('Rewritten')).toBeInTheDocument()
+  })
+
+  it('the slot ctx close still routes through the same guarded path', () => {
+    const onClose = vi.fn()
+    open({
+      title: 'A',
+      onClose,
+      content: ({close}) => <button onClick={() => close()}>Done</button>,
+    })
+    fireEvent.click(screen.getByText('Done'))
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
 })

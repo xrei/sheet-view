@@ -17,6 +17,40 @@
  * frozen — renames are a semver-major change.
  */
 
+/* ── Scroll lock ─────────────────────────────────────────────────────────
+ * The page lock is these attribute-scoped rules + `data-sheet-scroll-lock` on
+ * <html> (set by core/locks.ts) — never an inline `style.overflow` write.
+ * Third-party scroll locks (Headless UI, body-scroll-lock, …) save/restore the
+ * inline register on the same elements, and some read it back to decide whether
+ * they hold a lock at all; writing it from two owners corrupts whichever
+ * teardown runs second. Attribute on/off composes with all of them in any order.
+ *
+ * The attribute is doubled for (0,2,1) specificity: beats a page-level
+ * `html.foo { overflow: … }` without !important. Staying below inline styles is
+ * deliberate — while a foreign lock holds the inline register both values lock,
+ * and its restore must find its own value, not ours.
+ */
+html[data-sheet-scroll-lock][data-sheet-scroll-lock] {
+  overflow: clip;
+}
+html[data-sheet-scroll-lock][data-sheet-scroll-lock] body {
+  overflow: clip;
+}
+/* Scrollbar-gap reservation: the width the vanished scrollbar occupied, folded
+   into the value locks.ts measured (page padding + gap). */
+html[data-sheet-scroll-gap][data-sheet-scroll-gap] body {
+  padding-right: var(--_sheet-lock-pr);
+}
+/* iOS keyboard-proof pin for document-scrolled pages — see locks.ts. */
+html[data-sheet-scroll-pin][data-sheet-scroll-pin] body {
+  position: fixed;
+  top: var(--_sheet-lock-top);
+  left: 0;
+  right: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
 /* Dialog — full-viewport modal, transparent, no default centered layout */
 .sv-sheet {
   position: fixed;

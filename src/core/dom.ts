@@ -183,6 +183,24 @@ export function buildSheetDOM(props: SheetOpenProps): SheetDOM {
     'data-sheet-part': 'viewport-layer',
   })
 
+  // Portal libs garbage-collect a container once it has no children (Headless
+  // UI deletes it, then re-hangs the disconnected node off <body>). A permanent
+  // invisible child means "empty" never happens; display:none is inline so the
+  // guarantee can't depend on a stylesheet being loaded.
+  const makeSentinel = (): HTMLElement => {
+    const s = createEl('span', 'sv-sheet__layer-sentinel', {
+      'data-sheet-part': 'layer-sentinel',
+      'aria-hidden': 'true',
+      hidden: '',
+    })
+    s.style.display = 'none'
+    return s
+  }
+  const anchorSentinel = makeSentinel()
+  const viewportSentinel = makeSentinel()
+  anchorLayer.append(anchorSentinel)
+  viewportLayer.append(viewportSentinel)
+
   card.append(handle, header, content, footer, overlay, anchorLayer)
   panel.append(card)
   scroll.append(closedSpacer, panel)
@@ -198,5 +216,6 @@ export function buildSheetDOM(props: SheetOpenProps): SheetDOM {
     card,
     slots: {header, icon, closeIcon, content, footer, overlay, toplayer},
     layers: {anchored: anchorLayer, viewport: viewportLayer},
+    sentinels: {anchored: anchorSentinel, viewport: viewportSentinel},
   }
 }

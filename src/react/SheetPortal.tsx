@@ -1,7 +1,8 @@
-import {useContext} from 'react'
+import {useContext, useEffect, useState} from 'react'
 import type {ReactNode} from 'react'
 import {createPortal} from 'react-dom'
 
+import {liveMove} from '../core/layer'
 import type {SheetLayerName} from '../core/types'
 import {SheetLayoutContext} from './SheetLayoutContext'
 import type {Sheets} from './sheets'
@@ -32,11 +33,10 @@ export interface SheetPortalProps {
 /**
  * Portals a popover into the right place inside an open sheet.
  *
- * The wrapper it renders is `display: contents` — it generates no box, so it
- * cannot swallow a backdrop press or the drag gesture, while `pointer-events`
- * still reaches the children by inheritance. That is the difference between this
- * and a hand-written `createPortal(node, topLayer)`, where a full-bleed
- * `pointer-events: auto` wrapper silently disables drag-to-close.
+ * Owns one stable `display: contents` host: it generates no box, so it cannot
+ * swallow a backdrop press or the drag gesture, and a target change only moves
+ * the host — React never remounts the subtree, so running animations, focus
+ * and media survive a sheet opening over the content or closing from under it.
  */
 export function SheetPortal({
   children,
@@ -48,13 +48,28 @@ export function SheetPortal({
   const options: SheetPortalTargetOptions = instance ? {layer, instance} : {layer}
   const target = useSheetPortalTarget(options)
 
+  // One stable host for the component's whole life. Client-only, like open().
+  const [host] = useState<HTMLElement | null>(() => {
+    if (typeof document === 'undefined') return null
+    const node = document.createElement('div')
+    node.style.display = 'contents'
+    node.style.pointerEvents = 'auto'
+    return node
+  })
+
+  useEffect(() => {
+    if (!host || !target || host.parentNode === target) return
+    liveMove(target, host)
+  }, [target, host])
+
+  // Detach only on unmount: a cleanup keyed on `target` would disconnect the
+  // host before the move above, forcing the state-losing appendChild path.
+  useEffect(() => () => host?.remove(), [host])
+
+  if (!host) return null
   // An anchored panel measured against a card that is sliding away is wrong, and
   // the top layer stays clickable for the whole exit — so leave by default.
   if (!keepOnClose && layout?.isClosing === true) return null
-  if (!target) return null
 
-  return createPortal(
-    <div style={{display: 'contents', pointerEvents: 'auto'}}>{children}</div>,
-    target,
-  )
+  return createPortal(children, host)
 }
