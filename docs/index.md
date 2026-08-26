@@ -7,6 +7,9 @@ hero:
   tagline: The platform does the modality, the a11y, and the drag — the library is <span class="kb">~7.7 kB</span> of glue. Framework-agnostic core, React adapter included.
   actions:
     - theme: brand
+      text: Open a sheet
+      link: '#open-sheet'
+    - theme: alt
       text: Get started
       link: /guide/getting-started
     - theme: alt

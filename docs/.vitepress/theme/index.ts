@@ -6,6 +6,7 @@ import AnatomyDemo from './AnatomyDemo.vue'
 import DemoPanel from './DemoPanel.vue'
 import HeroSheetScene from './HeroSheetScene.vue'
 import ReactDemo from './ReactDemo.vue'
+import TryOpenAction from './TryOpenAction.vue'
 import VanillaDemo from './VanillaDemo.vue'
 
 export default {
@@ -13,6 +14,7 @@ export default {
   Layout: () =>
     h(DefaultTheme.Layout, null, {
       'home-hero-image': () => h(HeroSheetScene),
+      'home-hero-actions-after': () => h(TryOpenAction),
     }),
   enhanceApp({app}) {
     app.component('AnatomyDemo', AnatomyDemo)

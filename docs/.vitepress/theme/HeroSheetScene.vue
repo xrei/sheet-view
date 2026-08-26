@@ -1,8 +1,11 @@
 <script setup>
+import {openTrySheet} from './trySheet'
 </script>
 
+<!-- aria-hidden stays: the click is a pointer-only shortcut to the same sheet
+     the hero's real button opens, so keyboard/AT users lose nothing. -->
 <template>
-  <div class="scene" aria-hidden="true">
+  <div class="scene" aria-hidden="true" @click="openTrySheet">
     <div class="glow" />
     <div class="phone">
       <div class="screen">
@@ -90,6 +93,10 @@
     transparent 78%
   );
   filter: blur(12px);
+}
+
+.scene {
+  cursor: pointer;
 }
 
 .phone {
