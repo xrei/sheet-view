@@ -1,6 +1,6 @@
 {
   "name": "sheet-view",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Headless bottom-sheet / modal built on native <dialog> + CSS scroll-snap. Framework-agnostic core, thin React adapter, optional default theme.",
   "type": "module",
   "packageManager": "pnpm@10.13.1",
