@@ -9,7 +9,7 @@ const toast = (text: string): void =>
 // <SheetPortal layer="viewport"> puts the toast in the sheet's top layer, above the
 // modal. No `?? document.body` fallback and no `pointer-events: auto` re-arm: the
 // portal resolves a target either way, and its wrapper is display:contents, so it
-// re-arms clicks for the toast without covering the viewport — backdrop-dismiss and
+// re-arms clicks for the toast without covering the viewport: backdrop-dismiss and
 // drag-to-close still work with a toast on screen.
 function Toasts() {
   const [msg, setMsg] = useState<string | null>(null)

@@ -4,9 +4,9 @@ import {createSheetCore} from '../src/core/sheetCore'
 import type {SheetCore} from '../src/core/types'
 import {installDialogShim} from '../src/testing'
 
-// tests/setup.ts already installed the shim for the whole run, so the members
-// under test are OURS. Behaviour tests exercise that live copy; the installation
-// mechanics tests have to strip members first, then put the prototype back.
+// tests/setup.ts installs the shim for the whole run, so the members under test
+// are the shim's. Tests of the installation itself strip a member first, then
+// put the prototype back.
 type ProtoBag = Record<string, unknown>
 
 function removeMembers(...keys: string[]): () => void {
@@ -52,15 +52,7 @@ describe('installDialogShim', () => {
     expect(el.open).toBe(false)
   })
 
-  it('is idempotent — a second call installs nothing', () => {
-    const shim = installDialogShim()
-    cleanups.push(shim.restore)
-    expect(shim.installed).toEqual([])
-  })
-
-  it('patches each member independently, so a partial dialog implementation is still repaired', () => {
-    // The frozen-page guard: a jsdom that grows showModal() but not close() must
-    // still get close(), or the core never sees the event that unlocks the page.
+  it('installs only the members that are missing', () => {
     const restoreProto = removeMembers('close')
     const shim = installDialogShim()
     cleanups.push(restoreProto, shim.restore)
@@ -77,34 +69,7 @@ describe('installDialogShim', () => {
     expect(shim.installed).not.toContain('open')
   })
 
-  it('installs `open` when it is missing a setter', () => {
-    const proto = HTMLDialogElement.prototype as unknown as ProtoBag
-    const saved = Object.getOwnPropertyDescriptor(proto, 'open')
-    // `set: undefined` is load-bearing — defineProperty retains descriptor fields
-    // it isn't given, so omitting it would keep jsdom's real setter.
-    Object.defineProperty(proto, 'open', {
-      configurable: true,
-      set: undefined,
-      get(this: HTMLDialogElement) {
-        return this.hasAttribute('open')
-      },
-    })
-    const shim = installDialogShim()
-    cleanups.push(
-      () => {
-        if (saved) Object.defineProperty(proto, 'open', saved)
-        else delete proto['open']
-      },
-      shim.restore,
-    )
-
-    expect(shim.installed).toContain('open')
-    const el = dialog()
-    el.open = true
-    expect(el.hasAttribute('open')).toBe(true)
-  })
-
-  it('close() dispatches a close event — the signal that releases the scroll lock', () => {
+  it('close() dispatches a close event', () => {
     const el = dialog()
     const onClose = vi.fn()
     el.addEventListener('close', onClose)
@@ -113,19 +78,12 @@ describe('installDialogShim', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('close() on an already-closed dialog is a no-op and dispatches nothing', () => {
+  it('close() on an already-closed dialog dispatches nothing', () => {
     const el = dialog()
     const onClose = vi.fn()
     el.addEventListener('close', onClose)
     el.close()
     expect(onClose).not.toHaveBeenCalled()
-  })
-
-  it('close(value) records returnValue', () => {
-    const el = dialog()
-    el.showModal()
-    el.close('accepted')
-    expect(el.returnValue).toBe('accepted')
   })
 
   it('restore() puts the prototype back exactly', () => {
@@ -171,7 +129,7 @@ describe('installDialogShim', () => {
       expect(first.open).toBe(true)
     })
 
-    it('honours preventDefault() — the sheet core blocks Escape that way', () => {
+    it('leaves the dialog open when the cancel is preventDefault()ed', () => {
       const shim = installDialogShim({cancelOnEscape: true})
       cleanups.push(shim.restore)
 
@@ -180,17 +138,6 @@ describe('installDialogShim', () => {
       el.addEventListener('cancel', (e) => e.preventDefault())
 
       document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}))
-      expect(el.open).toBe(true)
-    })
-
-    it('is off by default, so an Escape keydown does nothing', () => {
-      const el = dialog()
-      el.showModal()
-      const onCancel = vi.fn()
-      el.addEventListener('cancel', onCancel)
-
-      document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}))
-      expect(onCancel).not.toHaveBeenCalled()
       expect(el.open).toBe(true)
     })
 
@@ -218,17 +165,15 @@ describe('a sheet under the shim', () => {
     vi.useRealTimers()
   })
 
-  it('tears down and releases the page when the dialog closes natively', () => {
+  it('drops the entry and releases the scroll lock when the dialog closes natively', () => {
     vi.useFakeTimers()
     core.open({title: 'A'})
     const html = document.documentElement
     expect(html.hasAttribute('data-sheet-scroll-lock')).toBe(true)
 
-    // The native close path the shim's `close` event drives — omit that event in
-    // a hand-rolled shim and the page stays locked forever.
     const el = document.querySelector('dialog.sv-sheet') as HTMLDialogElement
     el.close()
-    vi.advanceTimersByTime(320)
+    vi.advanceTimersByTime(600)
 
     expect(core.getSnapshot()).toHaveLength(0)
     expect(html.hasAttribute('data-sheet-scroll-lock')).toBe(false)

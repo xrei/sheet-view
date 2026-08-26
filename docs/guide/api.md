@@ -48,6 +48,7 @@ Those slots render into this DOM — target the `data-sheet-part` hooks (or the
 `.sv-sheet__*` classes) for styling:
 
 ```html
+<!-- data-sheet-stack is absent on the top sheet; "covered" / "buried" / "hidden" below it -->
 <dialog class="sv-sheet" data-sheet-state="open">
   <div data-sheet-part="backdrop"></div>  <!-- the dim behind the card -->
   <!-- scroll / spacer / panel: the scroll-snap wrappers that power drag-to-close -->
@@ -58,6 +59,7 @@ Those slots render into this DOM — target the `data-sheet-part` hooks (or the
     <div data-sheet-part="footer">…</div>  <!-- pinned actions -->
     <div data-sheet-part="overlay">…</div> <!-- decorations, free to overflow -->
     <div data-sheet-part="anchor-layer">…</div>   <!-- layers.anchored: dropdowns -->
+    <div data-sheet-part="scrim"></div>    <!-- the card's own dim, when covered -->
   </div>
   <div data-sheet-part="toplayer">        <!-- above the card, viewport-fixed -->
     <div data-sheet-part="viewport-layer">…</div> <!-- layers.viewport: toasts -->
@@ -88,16 +90,22 @@ needs one stack. The React `sheets` facade is bound to it.
 
 | Option         | Type      | Default   | Notes                                                             |
 | -------------- | --------- | --------- | ----------------------------------------------------------------- |
-| `closeMs`      | `number`  | `320`     | Exit budget for a button/backdrop/Escape/programmatic close.      |
-| `dragCloseMs`  | `number`  | `220`     | Exit budget for a drag-close (transform off a frozen scroller).   |
-| `enterMs`      | `number`  | `400`     | Mobile entrance duration — the JS mirror of `--sheet-enter-duration`. |
+| `closeMs`      | `number`  | `517`     | Exit duration for a button/backdrop/Escape/programmatic close — which always travels a whole card height. |
+| `dragCloseMs`  | `number`  | `517`     | Release duration — **the same however far the card still has to go**, so the speed is proportional to the distance. Covers the drag-commit exit and the snap-back; a flick differs only in the curve it rides. |
+| `enterMs`      | `number`  | `507`     | Mobile entrance duration — the JS mirror of `--sheet-enter-duration`. |
 | `openSettleMs` | `number`  | `enterMs` | Delay after open before drag-to-close arms.                       |
 | `breakpoint`   | `number`  | `768`     | Viewport width (px) below which the mobile slide-up layout applies. |
 | `zoomLock`     | `boolean` | `false`   | Pins `maximum-scale=1` while open to block iOS focus zoom. Off by default — a WCAG 1.4.4 trade-off. |
 | `closeLabel`   | `string`  | `'Close'` | Default accessible label for close buttons in this instance.      |
 
-`closeMs` / `dragCloseMs` should be **≥** the exit durations in CSS
-(`--sheet-exit-duration`, `--sheet-backdrop-duration`), or a close is cut short.
+`closeMs` is the whole exit: the card's animation, the promotion of the sheet
+underneath, and the delay before the DOM is removed all read it, so nothing is
+left to drift out of step with anything else.
+
+**Every release takes the same time, whatever distance is left** — so the speed is
+proportional to the distance, not constant. Scaling the duration with the travel
+instead lands a near-threshold snap-back in about 200 ms against a reference
+~470 ms, which reads as the sheet snapping rather than settling.
 
 `enterMs` retunes the entrance from one number: it writes the private
 `--_sheet-enter-ms` that `--sheet-enter-duration` falls back to, and it defaults
@@ -294,9 +302,35 @@ stays frozen for the rest of the file.
   with the sheet in any open/close order. The attribute is a stable styling hook;
   the `data-sheet-scroll-gap` / `data-sheet-scroll-pin` attributes and `--_sheet-lock-*`
   properties beside it are internal.
+- **A stack renders a bounded deck.** The core marks each dialog root with
+  `data-sheet-stack`: absent on the top sheet, `"covered"` directly under it,
+  `"buried"` one deeper (parked behind the top card, still painting — a drag on
+  the top sheet slides it out in real time), `"hidden"` beyond that (pixel-identical
+  to buried forever, so it stops painting). Two more stable hooks ride along:
+  `data-sheet-nested` (opened over another sheet — such a card is slightly
+  shorter, which is what leaves the covered card's strip visible) and
+  `data-sheet-recede` (the card holds the receded pose: full-height sheets recede
+  under a full-height sheet; `sm`/`md` stacks keep their natural rects and only
+  the dims mark the depth). **The pose is mobile-only.** On desktop every card in
+  a stack keeps its natural rect and sits exactly on the one below, marked by the
+  dim alone: a centred dialog has no bottom edge to peek above. The attribute is
+  still written at both widths so you can style your own desktop pose against it.
+  A dim belongs to a card, not to the viewport: only
+  the bottom sheet's backdrop covers the page, and each card above the bottom is
+  shaded by its own card-bounded scrim (0.6 of the dim colour directly under the
+  top card, 0.8 deeper) — so the shade never deepens with the stack, at any
+  depth. One backdrop blur total, and hidden sheets stay fully alive: state,
+  scroll positions and React subtrees are untouched, and everything is restored
+  when they come back up. Target the attributes to restyle the stacked states,
+  or override the rules to opt out.
 - **Drag-to-dismiss is from the header / grabber.** The content area uses
   `overscroll-behavior: contain`, so scrolling a long body never dismisses the sheet.
   This is deliberate — a long read shouldn't end in an accidental close.
+- **A drag commits at half the card's own height**, not half the viewport, so a
+  short sheet closes at the same point in its own travel as a full-height one.
+  A fast release commits far earlier: speed picks the destination, position only
+  decides a slow one. The finger can also come back mid-return and catch the
+  sheet, which cancels the snap-back and hands the gesture straight back.
 - **iOS keyboard & `100dvh`.** `dvh` doesn't shrink when the keyboard appears, so a
   pinned `footer` can sit behind it while a field is focused. `focusOnOpen` fixes the
   open seam; for a keyboard-following footer, drive it from `visualViewport`.
@@ -309,10 +343,9 @@ stays frozen for the rest of the file.
   clicked; the pointer falls through to whatever sits beneath it — and if that's the
   dim, the sheet closes. This is per-spec top-layer behaviour
   ([whatwg/html#9936](https://github.com/whatwg/html/issues/9936)), and a page can't
-  override it: you cannot move someone else's DOM inside your dialog. Bitwarden and
-  1Password detect modal dialogs and work around it; iCloud Passwords currently
-  doesn't. Built-in browser autofill (mobile, Chrome's own manager, Safari) is native
-  UI and unaffected.
+  override it: you cannot move someone else's DOM inside your dialog. Some password
+  managers detect a modal dialog and work around it, others don't. Built-in browser
+  autofill (mobile, Chrome's own manager, Safari) is native UI and unaffected.
 
   This is **not** a limit on your own popovers — the rule is only "is the DOM inside
   the `<dialog>`", and your dropdowns are DOM you control. See

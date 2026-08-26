@@ -1,8 +1,4 @@
 <script setup>
-// The landing hero: a staged miniature of the sheet lifecycle on a pure-CSS
-// timeline — a touch cursor presses the page button, the sheet opens, explodes
-// into the anatomy, reassembles, then the cursor grabs the handle and swipes it
-// away. One master duration; every element keys its frames off the same clock.
 </script>
 
 <template>
@@ -57,8 +53,7 @@
 </template>
 
 <style>
-/* The default theme sizes .image-container for a square logo; let the scene
-   own its footprint instead. */
+/* The default theme sizes .image-container for a square logo. */
 .VPHome .VPHero .image-container {
   width: auto;
   height: auto;
@@ -68,8 +63,7 @@
   color: var(--vp-c-brand-1);
   font-weight: 600;
 }
-/* The default mobile layout pulls the (square-logo-sized) image into the text
-   with negative margins; give the taller scene real space instead. */
+/* The default mobile layout pulls the image into the text with negative margins. */
 @media (max-width: 959px) {
   .VPHome .VPHero .image {
     margin: -32px auto 12px;
@@ -87,7 +81,6 @@
   padding: 8px 0;
 }
 
-/* Soft brand glow so the device melts into the page instead of sitting in a box. */
 .glow {
   position: absolute;
   inset: -56px -76px;
@@ -99,15 +92,12 @@
   filter: blur(12px);
 }
 
-/* --- the device --------------------------------------------------------- */
 .phone {
   position: relative;
   width: 306px;
   height: 568px;
   padding: 5px;
   border-radius: 44px;
-  /* Neutral bezel keyed to the theme's own gray scale — silver on the light
-     theme, graphite on the dark one. Reads as a device, never as an accent. */
   background: linear-gradient(
     205deg,
     color-mix(in srgb, var(--vp-c-text-1) 14%, var(--vp-c-bg)),
@@ -138,7 +128,6 @@
   z-index: 6;
 }
 
-/* --- the app page behind the sheet --------------------------------------- */
 .page {
   position: absolute;
   inset: 0;
@@ -184,15 +173,14 @@
   animation: bd var(--cycle) infinite;
 }
 
-/* --- the sheet ------------------------------------------------------------ */
 .sheet {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
   height: 344px;
-  /* At rest the bottom corners match the screen's own radius, exactly like a
-     real sheet against a real display corner — nothing reads as cropped. */
+  /* At rest the bottom corners match the screen's own radius, so nothing reads
+     as cropped. */
   border-radius: 20px 20px 37px 37px;
   background: var(--vp-c-bg-elv);
   box-shadow:
@@ -207,7 +195,6 @@
     sheet var(--cycle) infinite,
     sheet-radius var(--cycle) infinite;
 }
-/* Violet card ring during the anatomy beat. */
 .sheet::after {
   content: '';
   position: absolute;
@@ -297,7 +284,6 @@
   background: var(--vp-c-brand-1);
 }
 
-/* --- anatomy labels -------------------------------------------------------- */
 .tag {
   position: absolute;
   right: 10px;
@@ -324,9 +310,8 @@
   translate: none;
 }
 
-/* --- the touch cursor ------------------------------------------------------
-   Anchored on the page button; waypoints are translate() offsets from there.
-   --hx/--hy = the sheet handle, --drag = end of the swipe (media-tuned). */
+/* Anchored on the page button; waypoints are translate() offsets from there.
+   --hx/--hy = the sheet handle, --drag = end of the swipe. */
 .touch {
   --hx: 67px;
   --hy: 100px;
@@ -345,17 +330,6 @@
   animation: touch var(--cycle) infinite;
 }
 
-/* --- the timeline -----------------------------------------------------------
-   0–4      cursor glides in to the button
-   4.8–6    press
-   5.5–11.5 sheet slides up (the library's own iOS curve)
-   11.5–20  open, resting
-   20–25    explode into the anatomy
-   25–46    anatomy, resting
-   46–51    reassemble
-   51–63    open, resting; cursor settles on the handle
-   65.5–71  swipe down — the sheet follows the finger out
-   74–100   closed pause, loop                                                 */
 @keyframes sheet {
   0%, 5.5% {
     transform: translateY(108%);
@@ -369,12 +343,10 @@
     transform: translateY(-20px) scale(0.955);
     animation-timing-function: ease;
   }
-  /* Finger-drag phase: the card tracks the cursor linearly… */
   51%, 65.5% {
     transform: translateY(0);
     animation-timing-function: linear;
   }
-  /* …then the finger lifts and momentum carries it out. */
   69% {
     transform: translateY(140px);
     animation-timing-function: cubic-bezier(0.3, 0, 0.8, 0.5);
@@ -384,8 +356,6 @@
   }
 }
 
-/* The card floats free of the screen's bottom corners while exploded — all
-   four corners round so nothing reads as cropped. */
 @keyframes sheet-radius {
   0%, 20%, 51%, 100% { border-radius: 20px 20px 37px 37px; }
   25%, 46% { border-radius: 20px; }
@@ -403,19 +373,16 @@
   6.4%, 100% { transform: none; }
 }
 
-/* Rings + card outline share one opacity window. */
 @keyframes anat {
   0%, 21%, 49%, 100% { opacity: 0; }
   25%, 46% { opacity: 1; }
 }
 
-/* Labels trail the rings slightly. */
 @keyframes tag {
   0%, 23%, 48%, 100% { opacity: 0; transform: translateX(5px); }
   27%, 45% { opacity: 1; transform: none; }
 }
 
-/* Parts drift apart around the content block. */
 @keyframes spread-a {
   0%, 20%, 51%, 100% { transform: none; }
   25%, 46% { transform: translateY(-5px); }
@@ -446,7 +413,7 @@
   73%, 100% { opacity: 0; transform: translate(var(--hx), calc(var(--drag) + 26px)) scale(1); }
 }
 
-/* Reduced motion: hold the resting open frame — no loop, no cursor. */
+/* Reduced motion: the base styles are the resting open frame, no cursor. */
 @media (prefers-reduced-motion: reduce) {
   .scene *,
   .scene *::before,

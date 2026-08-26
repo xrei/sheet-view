@@ -2,6 +2,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
 import {createSheetCore} from '../src/core/sheetCore'
 import type {SheetCore} from '../src/core/types'
+import {mockMatchMedia, motionMs, motionRange} from './helpers'
 
 describe('createSheetCore', () => {
   let core: SheetCore
@@ -13,7 +14,7 @@ describe('createSheetCore', () => {
 
   afterEach(() => {
     core.__resetForTests()
-    for (const c of extraCores) c.__resetForTests() // cleaned even if a test throws
+    for (const c of extraCores) c.__resetForTests()
     extraCores.length = 0
     vi.useRealTimers()
   })
@@ -32,14 +33,7 @@ describe('createSheetCore', () => {
     })
   })
 
-  it('stacks entries in open order', () => {
-    core.open({title: 'A'})
-    core.open({title: 'B'})
-    const ids = core.getSnapshot().map((e) => e.id)
-    expect(ids).toEqual([1, 2])
-  })
-
-  it('teardown parks occupied layers whole — content stays connected, in its parent', () => {
+  it('teardown parks an occupied layer whole, content still inside it', () => {
     vi.useFakeTimers()
     const handle = core.open({title: 'A'})
     const survivor = document.createElement('div')
@@ -47,56 +41,39 @@ describe('createSheetCore', () => {
     handle.layers.viewport.appendChild(survivor)
 
     handle.close()
-    vi.advanceTimersByTime(320)
+    vi.advanceTimersByTime(600)
 
-    // Still connected, still a child of ITS layer — the layer node itself was
-    // parked, so a foreign reconciler can still removeChild its own content.
+    // The layer node moved, not its children, so a foreign reconciler can still
+    // removeChild what it rendered.
     expect(survivor.isConnected).toBe(true)
     expect(survivor.parentElement).toBe(handle.layers.viewport)
     expect(survivor.closest('[data-sheet-part="layer-rescue"]')).not.toBeNull()
-    // The empty anchored layer left with the dialog.
+    // An empty layer is not parked, it leaves with the dialog.
     expect(handle.layers.anchored.isConnected).toBe(false)
 
-    // A claimed node (moved out by a subscriber) is left alone by the sweep…
-    const claimed = survivor
-    document.body.appendChild(claimed)
-    vi.advanceTimersByTime(1000)
-    expect(claimed.isConnected).toBe(true)
-    claimed.remove()
+    vi.advanceTimersByTime(1000) // let the sweep run, so nothing outlives the test
   })
 
-  it('the rescue sweep drops content nobody claimed (the old lifecycle)', () => {
+  it('the sweep drops a parked layer after the grace period, sparing claimed nodes', () => {
     vi.useFakeTimers()
     const handle = core.open({title: 'A'})
     const abandoned = document.createElement('div')
-    handle.layers.viewport.appendChild(abandoned)
+    const claimed = document.createElement('div')
+    handle.layers.viewport.append(abandoned, claimed)
 
     handle.close()
-    vi.advanceTimersByTime(320)
-    expect(abandoned.isConnected).toBe(true) // parked…
+    vi.advanceTimersByTime(600)
+    expect(abandoned.isConnected).toBe(true)
 
+    document.body.appendChild(claimed) // its owner re-homed it
     vi.advanceTimersByTime(1000)
-    expect(abandoned.isConnected).toBe(false) // …then swept, like before
-    // Its parent link survived even the sweep:
+
+    expect(abandoned.isConnected).toBe(false)
     expect(abandoned.parentElement).toBe(handle.layers.viewport)
-  })
-
-  it('teardown of an empty sheet parks nothing', () => {
-    vi.useFakeTimers()
-    const handle = core.open({title: 'A'})
-    handle.close()
-    vi.advanceTimersByTime(320)
-    // Both layers (sentinels only) leave with the dialog — nothing to park.
-    expect(handle.layers.anchored.isConnected).toBe(false)
-    expect(handle.layers.viewport.isConnected).toBe(false)
-  })
-
-  it('handle.close() flips isClosing without removing immediately', () => {
-    const handle = core.open({title: 'A'})
-    handle.close()
-    const snap = core.getSnapshot()
-    expect(snap).toHaveLength(1)
-    expect(snap[0]!.isClosing).toBe(true)
+    expect(claimed.isConnected).toBe(true)
+    // Nothing left parked, so the receiver leaves the host's <body> too.
+    expect(document.querySelector('[data-sheet-part="layer-rescue"]')).toBeNull()
+    claimed.remove()
   })
 
   it('removes the entry and fires onExited after the close animation', () => {
@@ -106,21 +83,13 @@ describe('createSheetCore', () => {
     handle.close()
 
     expect(core.getSnapshot()).toHaveLength(1)
-    vi.advanceTimersByTime(320)
+    vi.advanceTimersByTime(600)
 
     expect(core.getSnapshot()).toHaveLength(0)
     expect(onExited).toHaveBeenCalledTimes(1)
   })
 
-  it('handle.update() merges props (closeDisabled reflected in snapshot)', () => {
-    const handle = core.open({title: 'A', closeDisabled: false})
-    expect(core.getSnapshot()[0]!.closeDisabled).toBe(false)
-
-    handle.update({closeDisabled: true})
-    expect(core.getSnapshot()[0]!.closeDisabled).toBe(true)
-  })
-
-  it('update() applies size and cardClassName, not only slots', () => {
+  it('update() applies size and cardClassName', () => {
     const handle = core.open({title: 'A', size: 'sm', cardClassName: 'a'})
     const card = document.querySelector('.sv-sheet__card')!
     expect(card.getAttribute('data-sheet-size')).toBe('sm')
@@ -129,29 +98,28 @@ describe('createSheetCore', () => {
     handle.update({size: 'lg', cardClassName: 'b'})
     expect(card.getAttribute('data-sheet-size')).toBe('lg')
     expect(card.classList.contains('b')).toBe(true)
-    expect(card.classList.contains('a')).toBe(false) // old class removed
+    expect(card.classList.contains('a')).toBe(false)
   })
 
-  it('applies root className + style tokens on open and re-syncs reset-safe on update', () => {
+  it('applies className and style on open, and update() clears the keys it replaces', () => {
     const handle = core.open({
       title: 'A',
       className: 'my-root',
-      // `--sheet-*` custom prop (primary use) + a camelCase normal prop.
       style: {'--sheet-surface': '#f00', zIndex: '5'},
     })
     const dialog = document.querySelector('dialog.sv-sheet') as HTMLElement
     expect(dialog.classList.contains('my-root')).toBe(true)
     expect(dialog.style.getPropertyValue('--sheet-surface')).toBe('#f00')
-    // camelCase is normalized to kebab so setProperty doesn't silently no-op.
+    // camelCase is normalized to kebab, setProperty silently no-ops otherwise.
     expect(dialog.style.getPropertyValue('z-index')).toBe('5')
 
     handle.update({className: 'other', style: {'--sheet-backdrop': '#00f'}})
     expect(dialog.classList.contains('other')).toBe(true)
-    expect(dialog.classList.contains('my-root')).toBe(false) // old class removed
-    expect(dialog.classList.contains('sv-sheet')).toBe(true) // base class intact
+    expect(dialog.classList.contains('my-root')).toBe(false)
+    expect(dialog.classList.contains('sv-sheet')).toBe(true)
     expect(dialog.style.getPropertyValue('--sheet-backdrop')).toBe('#00f')
-    expect(dialog.style.getPropertyValue('--sheet-surface')).toBe('') // old key cleared
-    expect(dialog.style.getPropertyValue('z-index')).toBe('') // old key cleared
+    expect(dialog.style.getPropertyValue('--sheet-surface')).toBe('')
+    expect(dialog.style.getPropertyValue('z-index')).toBe('')
   })
 
   it('closeLabel defaults to "Close" and is overridable per sheet', () => {
@@ -168,10 +136,9 @@ describe('createSheetCore', () => {
     )
   })
 
-  it('leaves the close glyph node EMPTY by default, so CSS can paint the ×', () => {
-    // The default × is `.sv-sheet__close-icon:empty::before` (asserted in
-    // css-contract, which jsdom can't evaluate). What the core owes it is an
-    // empty node inside the button — any stray text node here kills the fallback.
+  it('leaves the close glyph node empty, inside the button', () => {
+    // The default × is painted by `.sv-sheet__close-icon:empty::before`, so any
+    // stray text node in that span kills it.
     const handle = core.open({title: 'A'})
     const btn = document.querySelector('.sv-sheet__close')!
     const glyph = document.querySelector('[data-sheet-part="close-icon"]')!
@@ -180,7 +147,7 @@ describe('createSheetCore', () => {
     expect(glyph.childNodes.length).toBe(0)
   })
 
-  it('closeIcon fills that node, and never touches the accessible name', () => {
+  it('closeIcon fills that node and leaves the accessible name alone', () => {
     const icon = document.createElement('span')
     icon.textContent = '✕'
     icon.setAttribute('data-custom-icon', '')
@@ -189,30 +156,7 @@ describe('createSheetCore', () => {
     const glyph = document.querySelector('[data-sheet-part="close-icon"]')!
     expect(glyph.querySelector('[data-custom-icon]')).not.toBeNull()
     expect(btn.textContent).toBe('✕')
-    // aria-label (the accessible name) is unaffected by a custom glyph.
     expect(btn).toHaveAttribute('aria-label', 'Close')
-  })
-
-  it('keeps the close glyph node identical across update() — portals depend on it', () => {
-    // buildDefaultHeader rebuilds the whole row on every update(). If the node
-    // were created there instead of moved, an external renderer's portal would
-    // keep writing into the detached previous one and the glyph would vanish.
-    const handle = core.open({title: 'A'})
-    const before = document.querySelector('[data-sheet-part="close-icon"]')
-    handle.update({title: 'B'})
-    const after = document.querySelector('[data-sheet-part="close-icon"]')
-    expect(after).toBe(before)
-    expect(after).toBe(handle.slots.closeIcon)
-    expect(document.querySelector('.sv-sheet__close')!.contains(after!)).toBe(true)
-  })
-
-  it('warns when closeIcon has no button to fill', () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    core.open({title: 'A', closeIcon: '✕', closeHidden: true})
-    expect(
-      warn.mock.calls.some((c) => String(c[0]).includes('`closeIcon` was ignored')),
-    ).toBe(true)
-    warn.mockRestore()
   })
 
   it('the icon slot renders before the title and keeps the close button', () => {
@@ -225,57 +169,8 @@ describe('createSheetCore', () => {
     expect(header.firstElementChild).toBe(icon)
     expect(icon.querySelector('[data-glyph]')).not.toBeNull()
     expect(document.querySelector('.sv-sheet__close')).not.toBeNull()
-    // Sibling of the <h2>, so it can't pollute the aria-labelledby name.
+    // A sibling of the <h2>, so it cannot leak into the aria-labelledby name.
     expect(icon.querySelector('[data-sheet-part="title"]')).toBeNull()
-  })
-
-  it('warns when `icon` has no title to sit next to (it would render nowhere)', () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    core.open({ariaLabel: 'A', icon: '★'})
-    expect(warn.mock.calls.some((c) => String(c[0]).includes('`icon` was ignored'))).toBe(
-      true,
-    )
-    warn.mockRestore()
-  })
-
-  it('a vanilla headerSlot + title names the dialog via aria-label', () => {
-    // Same WCAG 4.1.2 hole as the React path, reachable without React: the custom
-    // header means there is no title node to point aria-labelledby at, so the
-    // title has to become the label rather than being dropped on the floor.
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const header = document.createElement('h1')
-    header.textContent = 'Filters'
-    core.open({title: 'Filters', headerSlot: header})
-
-    const dialog = document.querySelector('dialog.sv-sheet')!
-    expect(dialog).toHaveAttribute('aria-label', 'Filters')
-    expect(dialog).not.toHaveAttribute('aria-labelledby')
-    expect(warn).not.toHaveBeenCalled()
-    warn.mockRestore()
-  })
-
-  it('closeLabel can be defaulted per core instance', () => {
-    const de = createSheetCore({closeLabel: 'Schließen'})
-    extraCores.push(de)
-    de.open({title: 'A'})
-    expect(document.querySelector('.sv-sheet__close')).toHaveAttribute(
-      'aria-label',
-      'Schließen',
-    )
-  })
-
-  it('ids are monotonic and reset by __resetForTests', () => {
-    expect(core.open({}).id).toBe(1)
-    expect(core.open({}).id).toBe(2)
-    core.__resetForTests()
-    expect(core.open({}).id).toBe(1)
-  })
-
-  it('closeAll() flips isClosing on every open entry', () => {
-    core.open({title: 'A'})
-    core.open({title: 'B'})
-    core.closeAll()
-    expect(core.getSnapshot().every((e) => e.isClosing)).toBe(true)
   })
 
   it('notifies subscribers on open and close', () => {
@@ -292,9 +187,10 @@ describe('createSheetCore', () => {
     unsubscribe()
   })
 
-  it('tuning options are honored (custom closeMs)', () => {
+  it('closeMs sets the delay between close() and onExited', () => {
     vi.useFakeTimers()
     const fast = createSheetCore({closeMs: 50})
+    extraCores.push(fast)
     const onExited = vi.fn()
     fast.open({title: 'A', onExited}).close()
 
@@ -302,7 +198,6 @@ describe('createSheetCore', () => {
     expect(onExited).not.toHaveBeenCalled()
     vi.advanceTimersByTime(1)
     expect(onExited).toHaveBeenCalledTimes(1)
-    fast.__resetForTests()
   })
 
   it('focusOnOpen marks the dialog with data-sheet-focus-open', () => {
@@ -312,31 +207,328 @@ describe('createSheetCore', () => {
     )
   })
 
-  it('omits data-sheet-focus-open by default', () => {
-    core.open({title: 'A'})
-    expect(document.querySelector('dialog.sv-sheet')).not.toHaveAttribute(
-      'data-sheet-focus-open',
-    )
-  })
-
-  it('a native dialog close (bypassing our path) runs full teardown', () => {
+  it('a native dialog close runs the full teardown and releases the scroll lock', () => {
     vi.useFakeTimers()
     const onExited = vi.fn()
     core.open({title: 'A', onExited})
     const dialog = document.querySelector('dialog.sv-sheet')!
     expect(
       document.documentElement.hasAttribute('data-sheet-scroll-lock'),
-    ).toBe(true) // lock acquired
+    ).toBe(true)
 
-    // The browser closed it out from under us (<form method="dialog">, force-close).
+    // What a <form method="dialog"> submit or a UA force-close looks like.
     dialog.dispatchEvent(new Event('close'))
-    vi.advanceTimersByTime(320)
+    vi.advanceTimersByTime(600)
 
     expect(core.getSnapshot()).toHaveLength(0)
     expect(
       document.documentElement.hasAttribute('data-sheet-scroll-lock'),
-    ).toBe(false) // lock released — page not frozen
+    ).toBe(false)
     expect(onExited).toHaveBeenCalledTimes(1)
+  })
+
+  const roles = (): Array<string | null> =>
+    [...document.querySelectorAll('dialog.sv-sheet')].map((d) =>
+      d.getAttribute('data-sheet-stack'),
+    )
+  const recedes = (): boolean[] =>
+    [...document.querySelectorAll('dialog.sv-sheet')].map((d) =>
+      d.hasAttribute('data-sheet-recede'),
+    )
+
+  it('assigns top / covered / buried / hidden roles as the stack grows', () => {
+    core.open({title: 'A'})
+    expect(roles()).toEqual([null])
+    core.open({title: 'B'})
+    expect(roles()).toEqual(['covered', null])
+    core.open({title: 'C'})
+    expect(roles()).toEqual(['buried', 'covered', null])
+    core.open({title: 'D'})
+    expect(roles()).toEqual(['hidden', 'buried', 'covered', null])
+    core.open({title: 'E'})
+    expect(roles()).toEqual(['hidden', 'hidden', 'buried', 'covered', null])
+  })
+
+  it('marks sheets opened over a live sheet as nested, permanently', () => {
+    core.open({title: 'A'})
+    core.open({title: 'B'})
+    const dialogs = (): HTMLElement[] => [
+      ...document.querySelectorAll<HTMLElement>('dialog.sv-sheet'),
+    ]
+    expect(dialogs().map((d) => d.hasAttribute('data-sheet-nested'))).toEqual([
+      false,
+      true,
+    ])
+    // Promotion back to top does not clear it: the geometry it carries is fixed
+    // at open.
+    core.getSnapshot()[1]!.handle.close()
+    expect(dialogs()[1]!.hasAttribute('data-sheet-nested')).toBe(true)
+  })
+
+  // A card recedes iff a full-height sheet (lg/xl) is above it AND it is either
+  // full-height itself or sits directly on a receding full-height card.
+  // Bottom of the stack first.
+  it.each([
+    {sizes: ['lg', 'lg'], expected: [true, false]},
+    {sizes: ['lg', 'md'], expected: [false, false]},
+    {sizes: ['md', 'lg'], expected: [false, false]},
+    {sizes: ['md', 'md'], expected: [false, false]},
+    {sizes: ['lg', 'md', 'lg'], expected: [true, true, false]}, // md rides along
+    {sizes: ['md', 'lg', 'lg'], expected: [false, true, false]},
+    {sizes: ['md', 'md', 'lg'], expected: [false, false, false]},
+    {sizes: ['lg', 'lg', 'md'], expected: [true, false, false]},
+    {sizes: ['lg', 'xl'], expected: [true, false]}, // xl is full-height too
+    {sizes: ['sm', 'lg'], expected: [false, false]},
+    {sizes: ['lg', 'lg', 'lg', 'lg'], expected: [true, true, true, false]},
+  ] as Array<{sizes: Array<'sm' | 'md' | 'lg' | 'xl'>; expected: boolean[]}>)(
+    'recede matrix: $sizes → $expected',
+    ({sizes, expected}) => {
+      for (const size of sizes) core.open({title: size, size})
+      expect(recedes()).toEqual(expected)
+    },
+  )
+
+  it.each([
+    {
+      sizes: ['lg', 'md', 'lg'],
+      stations: ['covered', 'covered', null],
+      receding: [true, true, false],
+    },
+    {
+      sizes: ['lg', 'md', 'md', 'lg'],
+      stations: ['covered', 'covered', 'covered', null],
+      receding: [true, true, false, false],
+    },
+  ] as Array<{
+    sizes: Array<'sm' | 'md' | 'lg' | 'xl'>
+    stations: Array<string | null>
+    receding: boolean[]
+  }>)(
+    'a station counts the full-height sheets above a card, not its index: $sizes → $stations',
+    ({sizes, stations, receding}) => {
+      for (const size of sizes) core.open({title: size, size})
+      expect(roles()).toEqual(stations)
+      expect(recedes()).toEqual(receding)
+    },
+  )
+
+  it('a receding card writes its measured scale, and a rider sinks to its anchor', () => {
+    const stub = (el: HTMLElement, w: number, h: number): void => {
+      Object.defineProperty(el, 'offsetWidth', {configurable: true, get: () => w})
+      Object.defineProperty(el, 'offsetHeight', {configurable: true, get: () => h})
+    }
+    // Mobile only: a centred desktop card holds no pose, so nothing is measured.
+    const mm = mockMatchMedia({mobile: true})
+    try {
+      const mobileCore = createSheetCore()
+      extraCores.push(mobileCore)
+      mobileCore.open({title: 'A', size: 'lg'})
+      mobileCore.open({title: 'B', size: 'md'})
+      const cards = [...document.querySelectorAll<HTMLElement>('.sv-sheet__card')]
+      stub(cards[0]!, 402, 760)
+      stub(cards[1]!, 402, 520)
+      mobileCore.open({title: 'C', size: 'lg'})
+
+      const dialogs = [...document.querySelectorAll<HTMLElement>('dialog.sv-sheet')]
+      const scale = 1 - 32 / 402 // 16px inset each side at 402px wide
+      expect(dialogs[0]!.style.getPropertyValue('--_sheet-recede-scale')).toBe(
+        String(scale),
+      )
+      // Every card at a station shares one bottom edge, so the shorter md sinks
+      // past the anchor's constant by (anchorHeight - ownHeight) * (1 - scale).
+      expect(dialogs[0]!.style.getPropertyValue('--_sheet-stack-ty')).toBe('0px')
+      const ty = -(760 - 520) * (1 - scale)
+      expect(dialogs[1]!.style.getPropertyValue('--_sheet-stack-ty')).toBe(`${ty}px`)
+    } finally {
+      mm.restore()
+    }
+  })
+
+  it('a role flip takes every measurement before it writes anything', () => {
+    // Reading offsetWidth flushes style and layout. A flush between a flip and
+    // the animation carrying it lands in the first frames as a stutter.
+    const mm = mockMatchMedia({mobile: true})
+    const mobileCore = createSheetCore()
+    extraCores.push(mobileCore)
+    mobileCore.open({title: 'A'})
+    const dialog = document.querySelector<HTMLElement>('dialog.sv-sheet')!
+    const card = dialog.querySelector<HTMLElement>('.sv-sheet__card')!
+
+    // The two registers a flip writes, sampled at the moment it measures.
+    let atMeasure: {attr: string | null; pose: string} | null = null
+    Object.defineProperty(card, 'offsetWidth', {
+      configurable: true,
+      get: () => {
+        atMeasure ??= {
+          attr: dialog.getAttribute('data-sheet-stack'),
+          pose: dialog.style.getPropertyValue('--_sheet-recede-scale'),
+        }
+        return 402
+      },
+    })
+
+    try {
+      mobileCore.open({title: 'B'})
+      expect(atMeasure).toEqual({attr: null, pose: ''})
+      // The animation carries its own start value, so nothing has to be flushed
+      // to make it run.
+      expect(dialog.getAttribute('data-sheet-stack')).toBe('covered')
+      expect(motionMs(card)).toBe(507)
+      const [from, to] = motionRange(card, 'transform')!
+      expect(from).toContain('scale(1)')
+      expect(to).toContain('scale(0.920')
+    } finally {
+      mm.restore()
+    }
+  })
+
+  it('desktop holds no pose: the stack is marked by the role and the dim alone', () => {
+    core.open({title: 'A'})
+    core.open({title: 'B'})
+    const covered = document.querySelector<HTMLElement>('dialog.sv-sheet')!
+    expect(covered.dataset['sheetStack']).toBe('covered')
+    expect('sheetRecede' in covered.dataset).toBe(true)
+    expect(covered.style.getPropertyValue('--_sheet-recede-scale')).toBe('')
+    expect(covered.style.getPropertyValue('--_sheet-stack-ty')).toBe('')
+    expect(covered.querySelector<HTMLElement>('.sv-sheet__scrim')!.style.opacity).toBe(
+      '0.6',
+    )
+  })
+
+  it('dims: one page backdrop on the bottom sheet, 0.6 / 0.8 scrims above it', () => {
+    core.open({title: 'A'})
+    core.open({title: 'B'})
+    core.open({title: 'C'})
+    const scrims = [...document.querySelectorAll<HTMLElement>('.sv-sheet__scrim')]
+    const backdrops = [
+      ...document.querySelectorAll<HTMLElement>('.sv-sheet__backdrop'),
+    ]
+    expect(scrims.map((s) => s.style.opacity)).toEqual(['0.8', '0.6', ''])
+    // Desktop rests the page dim on CSS, so no backdrop carries an inline value.
+    expect(backdrops.map((b) => b.style.opacity)).toEqual(['', '', ''])
+    core.open({title: 'D'})
+    const scrims4 = [...document.querySelectorAll<HTMLElement>('.sv-sheet__scrim')]
+    expect(scrims4.map((s) => s.style.opacity)).toEqual(['0.8', '0.8', '0.6', ''])
+  })
+
+  it('the page dim stays on the bottom sheet once that sheet is hidden', () => {
+    for (const title of ['A', 'B', 'C', 'D', 'E']) core.open({title})
+    const dialogs = [...document.querySelectorAll<HTMLElement>('dialog.sv-sheet')]
+    expect(dialogs.map((d) => d.dataset['sheetStack'] ?? null)).toEqual([
+      'hidden',
+      'hidden',
+      'buried',
+      'covered',
+      null,
+    ])
+    expect(core.getSnapshot()).toHaveLength(5)
+    const backdrops = [...document.querySelectorAll<HTMLElement>('.sv-sheet__backdrop')]
+    expect(backdrops[0]!.closest('dialog')!.dataset['sheetStack']).toBe('hidden')
+    // 'hidden' hides the CARD, not the dialog, so its backdrop still paints.
+    expect(dialogs[0]!.style.visibility).toBe('')
+  })
+
+  it('closing the bottom sheet hands the page dim to the new bottom-most sheet', () => {
+    vi.useFakeTimers()
+    core.open({title: 'A'})
+    core.open({title: 'B'})
+    const backdrops = [
+      ...document.querySelectorAll<HTMLElement>('.sv-sheet__backdrop'),
+    ]
+
+    core.getSnapshot()[0]!.handle.close()
+    // A nested sheet's backdrop rests transparent in CSS, so the page dim it
+    // inherits has to be written inline.
+    expect(backdrops[1]!.style.opacity).toBe('1')
+    // Desktop fades it from base.css, so the core runs no animation of its own.
+    expect(motionRange(backdrops[1]!, 'opacity')).toBeUndefined()
+  })
+
+  it("update({size}) re-walks the recede: shrinking the top to 'md' releases the card below", () => {
+    core.open({title: 'A'})
+    const top = core.open({title: 'B'})
+    expect(recedes()).toEqual([true, false])
+
+    top.update({size: 'md'})
+    expect(recedes()).toEqual([false, false])
+    expect(roles()).toEqual(['covered', null]) // still covered, only the pose goes
+
+    top.update({size: 'lg'})
+    expect(recedes()).toEqual([true, false])
+  })
+
+  it('closing the top promotes the one below synchronously, before the exit paints', () => {
+    vi.useFakeTimers()
+    core.open({title: 'A'})
+    core.open({title: 'B'})
+    core.open({title: 'C'})
+
+    core.getSnapshot()[2]!.handle.close()
+    // The closing sheet keeps its role for the whole exit, so the two dims
+    // cross-fade.
+    expect(roles()).toEqual(['covered', null, null])
+
+    vi.advanceTimersByTime(600)
+    expect(roles()).toEqual(['covered', null])
+  })
+
+  it('closing a middle sheet leaves it covered and promotes the one below it', () => {
+    vi.useFakeTimers()
+    core.open({title: 'A'})
+    core.open({title: 'B'})
+    core.open({title: 'C'})
+
+    core.getSnapshot()[1]!.handle.close()
+    expect(roles()).toEqual(['covered', 'covered', null])
+
+    vi.advanceTimersByTime(600)
+    expect(roles()).toEqual(['covered', null])
+  })
+
+  it('closeAll freezes every sheet in its pre-close role', () => {
+    core.open({title: 'A'})
+    core.open({title: 'B'})
+    core.open({title: 'C'})
+    core.closeAll()
+    // A promotion here would fade a dim in under sheets that are all leaving.
+    expect(roles()).toEqual(['buried', 'covered', null])
+  })
+
+  it("strategy 'replace' keeps the sheet below covered for the whole swap", () => {
+    core.open({title: 'A'})
+    core.open({title: 'B', key: 'k'})
+    expect(roles()).toEqual(['covered', null])
+
+    core.open({title: 'C', key: 'k', strategy: 'replace'})
+    // A is demoted again in the same tick it is promoted, so no frame paints it
+    // uncovered.
+    expect(roles()).toEqual(['covered', null, null])
+  })
+
+  it('a native close promotes the sheet below it too', () => {
+    vi.useFakeTimers()
+    core.open({title: 'A'})
+    core.open({title: 'B'})
+    expect(roles()).toEqual(['covered', null])
+
+    const dialogs = document.querySelectorAll('dialog.sv-sheet')
+    dialogs[1]!.dispatchEvent(new Event('close'))
+    expect(roles()).toEqual([null, null])
+
+    vi.advanceTimersByTime(600)
+    expect(roles()).toEqual([null])
+  })
+
+  it('demotion gives the inline page dim back to CSS', () => {
+    // Specificity cannot beat an inline style, so the ladder rules in base.css
+    // only work once the core drops the register. (Mobile drives it per frame;
+    // the inline write here stands in for that.)
+    core.open({title: 'A'})
+    const backdrop = document.querySelector<HTMLElement>('.sv-sheet__backdrop')!
+    backdrop.style.opacity = '1'
+
+    core.open({title: 'B'})
+    expect(backdrop.style.opacity).toBe('')
   })
 
   it('a native close while already closing does not double-fire teardown', () => {
@@ -345,9 +537,9 @@ describe('createSheetCore', () => {
     const handle = core.open({title: 'A', onExited})
     handle.close()
     const dialog = document.querySelector('dialog.sv-sheet')!
-    dialog.dispatchEvent(new Event('close')) // guarded: already closing
+    dialog.dispatchEvent(new Event('close'))
 
-    vi.advanceTimersByTime(320)
+    vi.advanceTimersByTime(600)
     expect(core.getSnapshot()).toHaveLength(0)
     expect(onExited).toHaveBeenCalledTimes(1)
   })

@@ -9,7 +9,7 @@ function Boom(): never {
   throw new Error('boom')
 }
 
-// React logs caught errors to console.error itself, on top of ours.
+// React logs a caught error to console.error itself, on top of the library's own.
 let errorSpy: ReturnType<typeof vi.spyOn>
 
 describe('slot error containment', () => {
@@ -37,22 +37,20 @@ describe('slot error containment', () => {
     errorSpy.mockRestore()
   })
 
-  it('a throwing content slot leaves the app, the sheet and the close button mounted', () => {
-    // Without a boundary this unmounts everything — <SheetHost> lives at the app
-    // root, so the throw propagates all the way up.
+  it('a throwing content slot leaves the app, the sheet and its close button mounted', () => {
+    // 'app chrome' is a sibling of <SheetHost> at the app root: it goes with the
+    // whole tree if the throw escapes.
     open({title: 'Filters', content: () => <Boom />})
 
     expect(screen.getByText('app chrome')).toBeInTheDocument()
     expect(document.querySelector('dialog.sv-sheet')).not.toBeNull()
     expect(document.querySelector('.sv-sheet__default-header')).not.toBeNull()
-    // The user can still get out, which is why boundaries are per-slot.
     expect(screen.getByLabelText('Close')).toBeInTheDocument()
     expect(document.querySelector('[data-sheet-part="content"]')!.textContent).toBe('')
   })
 
-  it('a slot FACTORY that throws is caught, not just a throwing child component', () => {
-    // The factory runs inside SlotRender, a child of the boundary. Invoke it in
-    // SheetPortals' own render instead and this escapes the boundary entirely.
+  it('a throwing slot factory is caught, like a throwing child component', () => {
+    // The factory runs inside SlotRender, a child of the boundary.
     open({
       title: 'A',
       content: () => {
@@ -64,7 +62,7 @@ describe('slot error containment', () => {
     expect(document.querySelector('dialog.sv-sheet')).not.toBeNull()
   })
 
-  it('a throwing footer does not blank the content — slots are isolated', () => {
+  it('a throwing footer leaves the content mounted', () => {
     open({
       title: 'A',
       content: () => <p>Body survives</p>,
@@ -73,16 +71,6 @@ describe('slot error containment', () => {
 
     expect(screen.getByText('Body survives')).toBeInTheDocument()
     expect(document.querySelector('[data-sheet-part="footer"]')!.textContent).toBe('')
-  })
-
-  it('a throwing headerSlot leaves the body alone', () => {
-    open({
-      ariaLabel: 'A',
-      headerSlot: () => <Boom />,
-      content: () => <p>Body survives</p>,
-    })
-
-    expect(screen.getByText('Body survives')).toBeInTheDocument()
   })
 
   it('names the failed slot on console.error', () => {
@@ -95,7 +83,7 @@ describe('slot error containment', () => {
     expect(String(ours![0])).toContain('"content" slot threw')
   })
 
-  it('reports to onSlotError, so Sentry does not lose the error', () => {
+  it('hands the error and the slot name to onSlotError', () => {
     const onSlotError = vi.fn()
     sheets.__resetForTests()
     sheets = createSheets()

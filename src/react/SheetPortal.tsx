@@ -14,17 +14,17 @@ export interface SheetPortalProps {
   /**
    * `'anchored'` (default) mounts inside the card: unclipped, moves with the card
    * through the entrance / drag / exit, and a click here never dismisses the
-   * sheet. Position children `absolute` — the card is their offsetParent.
+   * sheet. Position children `absolute`, the card is their offsetParent.
    *
    * `'viewport'` mounts in the sheet's top layer: above the card, viewport-fixed,
    * does not follow the card. Position children `fixed`.
    *
-   * Never use `position: fixed` inside the card: the card is a fixed-positioning
-   * containing block only *while it animates*, so a fixed descendant jumps when
-   * the entrance ends. Use `'viewport'` instead.
+   * `position: fixed` inside the card resolves against the card, not the
+   * viewport: the card declares `will-change: transform`, which makes it their
+   * containing block. Use `'viewport'` for that.
    */
   layer?: SheetLayerName
-  /** Stay mounted while the sheet closes — for an exit-animated toast. Default `false`. */
+  /** Stay mounted while the sheet closes, for an exit-animated toast. Default `false`. */
   keepOnClose?: boolean
   /** Facade to read when rendered outside a sheet slot. Defaults to the `sheets` singleton. */
   instance?: Sheets
@@ -34,9 +34,8 @@ export interface SheetPortalProps {
  * Portals a popover into the right place inside an open sheet.
  *
  * Owns one stable `display: contents` host: it generates no box, so it cannot
- * swallow a backdrop press or the drag gesture, and a target change only moves
- * the host — React never remounts the subtree, so running animations, focus
- * and media survive a sheet opening over the content or closing from under it.
+ * swallow a backdrop press or the drag gesture, and a target change moves that
+ * host instead of remounting the subtree, so animations, focus and media survive.
  */
 export function SheetPortal({
   children,
@@ -68,7 +67,7 @@ export function SheetPortal({
 
   if (!host) return null
   // An anchored panel measured against a card that is sliding away is wrong, and
-  // the top layer stays clickable for the whole exit — so leave by default.
+  // the top layer stays clickable for the whole exit, so leave by default.
   if (!keepOnClose && layout?.isClosing === true) return null
 
   return createPortal(children, host)

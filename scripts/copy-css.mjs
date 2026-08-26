@@ -11,20 +11,17 @@ const files = ['base.css', 'theme.css', 'styles.css']
 
 await mkdir(dist, {recursive: true})
 
-// dist ships MINIFIED css — the sources are heavily commented (the comments are
-// the documentation of the cascade contract) and a CDN / bundler-less consumer
-// shouldn't pay for that. The commented originals still publish under src/.
+// dist ships minified css; the unminified sources also publish under src/.
 //
-// `targets` = the README's documented floor (Safari 15.4 / Chrome 108 / FF 101,
-// the dvh baseline). Without targets, minification rewrites media queries into
-// MQ4 range syntax ((width<=767px)), which Safari <16.4 won't parse — silently
-// raising the floor and dropping every mobile rule there.
+// `targets` is the supported floor, stated so lightningcss cannot emit syntax
+// newer than it. Nothing here is downlevelled: every feature the sources use
+// already ships in all three.
 const v = (major, minor = 0) => (major << 16) | (minor << 8)
 const targets = {
-  safari: v(15, 4),
-  ios_saf: v(15, 4),
-  chrome: v(108),
-  firefox: v(101),
+  safari: v(18, 2),
+  ios_saf: v(18, 2),
+  chrome: v(127),
+  firefox: v(139),
 }
 
 const sizes = []
@@ -35,10 +32,9 @@ for (const f of files) {
     code: Buffer.from(source),
     minify: true,
     targets,
-    // theme.css already carries its own prefers-color-scheme fallback for
-    // light-dark(); lightningcss's polyfill would rewrite it onto
-    // --lightningcss-* vars the HOST page never defines, breaking the
-    // follow-the-host color scheme everywhere, not just in old browsers.
+    // light-dark() ships verbatim: lightningcss's polyfill rewrites it onto
+    // --lightningcss-light / --lightningcss-dark vars the host page never
+    // defines. It is inside the browser floor above, so nothing needs polyfilling.
     exclude: Features.LightDark,
   })
   for (const w of warnings) {

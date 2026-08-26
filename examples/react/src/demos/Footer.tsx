@@ -3,7 +3,7 @@ import {createSheets, SheetHost} from 'sheet-view/react'
 
 const sheets = createSheets()
 
-// Both header glyphs as plain JSX — the shape every icon library ships. They fill
+// Both header glyphs as plain JSX, the shape every icon library ships. They fill
 // library-owned nodes, so the close button keeps its label, its disabled state and
 // its 44×44 hit target. Nothing here replaces the header row.
 const Sparkle = (): ReactElement => (

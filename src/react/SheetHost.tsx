@@ -16,8 +16,7 @@ import type {
   Sheets,
 } from './sheets'
 
-// Stable empty snapshot so getSnapshot === the server snapshot during SSR /
-// hydration (no portals against DOM that doesn't exist on the server).
+// Stable identity so getSnapshot === the server snapshot during hydration.
 const EMPTY: SheetEntrySnapshot[] = []
 const serverSnapshot = (): SheetEntrySnapshot[] => EMPTY
 
@@ -33,8 +32,8 @@ export interface SheetHostProps {
   instance?: Sheets
   /**
    * Called when a slot throws, after the library logs it. A reporting seam for
-   * Sentry / `onCaughtError`, which otherwise lose sight of contained errors —
-   * not a place to render a fallback (the failed slot renders nothing).
+   * Sentry / `onCaughtError`, not a place to render a fallback: the failed slot
+   * renders nothing.
    */
   onSlotError?: SheetSlotErrorHandler
 }
@@ -64,9 +63,8 @@ interface SheetPortalsProps {
 }
 
 /**
- * Invokes a slot factory. It has to happen HERE, inside a child of the boundary —
- * calling it in SheetPortals' own render would put the most likely crash (a
- * factory dereferencing something null) outside the boundary entirely.
+ * Invokes a slot factory. It happens in a child of the boundary: calling it in
+ * SheetPortals' own render would put a throwing factory outside the boundary.
  */
 function SlotRender({
   slot,
@@ -87,12 +85,10 @@ function SheetPortals({
   onSlotError,
 }: SheetPortalsProps): ReactNode {
   const {slots, handle, layers, card, scroll, phase, isClosing} = entry
-  // The ctx `update` MUST be the facade's, not the core handle's: a factory
-  // calling `update({content: <Jsx/>})` through the core would hand mountSlot an
-  // object it can't resolve, which replaceChildren()s the slot to empty — wiping
-  // the portal DOM React is rendering into and crashing the host root. The
-  // fallback (no facade handle — shouldn't happen for a rendered entry) strips
-  // the slot keys before the core for the same reason.
+  // The ctx `update` must be the facade's, not the core handle's: a ReactNode
+  // routed through the core resolves to nothing and replaceChildren()s the slot
+  // empty, wiping the portal DOM React renders into. The fallback strips the
+  // slot keys for the same reason.
   const ctx = useMemo<SheetReactContext>(
     () => ({
       close: handle.close,
@@ -135,13 +131,10 @@ function SheetPortals({
           target,
         )
 
-  // Context flows through portals (it follows the React tree, not the DOM tree),
-  // so slot content anywhere below can ask where to mount its popovers.
   return (
     <SheetLayoutContext.Provider value={layout}>
       {portal('headerSlot', fns.headerSlot, slots.header)}
-      {/* A custom header owns the whole row, so neither glyph has anywhere to go —
-          same rule the core applies to `title`. */}
+      {/* A custom header owns the whole row, so neither glyph has anywhere to go. */}
       {fns.headerSlot == null && portal('icon', fns.icon, slots.icon)}
       {fns.headerSlot == null &&
         portal('closeIcon', fns.closeIcon, slots.closeIcon)}

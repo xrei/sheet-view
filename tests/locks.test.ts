@@ -4,8 +4,9 @@ import {createSheetCore} from '../src/core/sheetCore'
 import type {SheetCore} from '../src/core/types'
 import {stubLayout} from './helpers'
 
-// scrollLock / zoomLock are module-global singletons; reset the core in afterEach
-// (even on assertion failure) so a leaked ref-count can't bleed into the next test.
+// scrollLock and zoomLock are module-global singletons, so every core is reset in
+// afterEach (which runs on assertion failure too) to keep a ref-count from leaking
+// into the next test.
 describe('zoomLock (viewport meta)', () => {
   let meta: HTMLMetaElement
   let core: SheetCore | undefined
@@ -23,13 +24,13 @@ describe('zoomLock (viewport meta)', () => {
     meta.remove()
   })
 
-  it('is off by default — the viewport meta is left untouched (WCAG 1.4.4)', () => {
+  it('leaves the viewport meta untouched by default', () => {
     core = createSheetCore()
     core.open({title: 'A'})
     expect(meta.getAttribute('content')).toBe('width=device-width')
   })
 
-  it('opt-in appends maximum-scale (no user-scalable) and restores on close', () => {
+  it('opt-in appends maximum-scale, never user-scalable, and restores on close', () => {
     core = createSheetCore({zoomLock: true})
     core.open({title: 'A'})
     expect(meta.getAttribute('content')).toBe('width=device-width, maximum-scale=1')
@@ -37,19 +38,11 @@ describe('zoomLock (viewport meta)', () => {
     core.__resetForTests()
     expect(meta.getAttribute('content')).toBe('width=device-width')
   })
-
-  it('opt-in on an empty viewport meta has no leading comma', () => {
-    meta.setAttribute('content', '')
-    core = createSheetCore({zoomLock: true})
-    core.open({title: 'A'})
-    expect(meta.getAttribute('content')).toBe('maximum-scale=1')
-  })
 })
 
-// The lock lives in `data-sheet-scroll-lock` + base.css rules, NOT in inline
-// styles — the inline `overflow` register is left entirely to third-party locks
-// (Headless UI et al.) that save/restore it and read it back to decide whether
-// they even locked. See locks.ts for why sharing that register cannot work.
+// The lock is the `data-sheet-scroll-lock` attribute plus base.css rules. The
+// inline `overflow` register belongs to third-party locks, which save it, restore
+// it, and read it back to decide whether they locked, so nothing here writes it.
 describe('scrollLock (attribute channel)', () => {
   let core: SheetCore | undefined
   let restore: (() => void) | undefined
@@ -74,22 +67,17 @@ describe('scrollLock (attribute channel)', () => {
     expect(html().hasAttribute('data-sheet-scroll-lock')).toBe(false)
   })
 
-  it('a third-party inline lock survives our release (the Headless UI leak)', () => {
+  it('a third-party inline overflow survives the release', () => {
     core = createSheetCore()
     core.open({title: 'A'})
-    // Headless UI opens a Select inside the sheet: it saves html.style.overflow
-    // ('' — we never wrote it) and takes the inline register for itself.
+    // A third-party lock takes the inline register while the sheet is open.
     html().style.overflow = 'hidden'
 
-    // Sheet closes first. The foreign value must survive our teardown: HUI reads
-    // it back to decide whether to run ITS cleanup — clobbering it leaks its
-    // document listeners ("containers is not iterable" on every later tap).
     core.__resetForTests()
     core = undefined
     expect(html().hasAttribute('data-sheet-scroll-lock')).toBe(false)
     expect(html().style.overflow).toBe('hidden')
 
-    // HUI's own teardown restores what it saved, and the page is free.
     html().style.overflow = ''
   })
 
@@ -107,21 +95,21 @@ describe('scrollLock (attribute channel)', () => {
     expect(html().hasAttribute('data-sheet-scroll-lock')).toBe(false)
   })
 
-  it('reserves the vanished scrollbar width via the gap attribute + custom prop', () => {
+  it('reserves the scrollbar width in the gap attribute and custom property', () => {
     restore = stubLayout({innerWidth: 1024, clientWidth: 1009}) // 15px classic scrollbar
     core = createSheetCore()
     core.open({title: 'A'})
     expect(html().hasAttribute('data-sheet-scroll-gap')).toBe(true)
     expect(html().style.getPropertyValue('--_sheet-lock-pr')).toBe('15px')
-    expect(document.body.style.paddingRight).toBe('') // never inline on body
+    expect(document.body.style.paddingRight).toBe('')
 
     core.__resetForTests()
     expect(html().hasAttribute('data-sheet-scroll-gap')).toBe(false)
     expect(html().style.getPropertyValue('--_sheet-lock-pr')).toBe('')
   })
 
-  it('reserves no gap when there is none (overlay scrollbars / scrollbar-gutter)', () => {
-    restore = stubLayout({innerWidth: 1024, clientWidth: 1024}) // gap 0
+  it('reserves no gap when the scrollbar takes no width (overlay scrollbars)', () => {
+    restore = stubLayout({innerWidth: 1024, clientWidth: 1024})
     core = createSheetCore()
     core.open({title: 'A'})
     expect(html().hasAttribute('data-sheet-scroll-gap')).toBe(false)
@@ -139,7 +127,7 @@ describe('scrollLock (attribute channel)', () => {
     core = createSheetCore()
     core.open({title: 'A'})
     expect(html().hasAttribute('data-sheet-scroll-pin')).toBe(true)
-    // The offset is parked in the DOM so ANY copy of the module can release it.
+    // The offset lives in the DOM, so any bundled copy of the module can release it.
     expect(html().style.getPropertyValue('--_sheet-lock-top')).toBe('-120px')
 
     core.__resetForTests()

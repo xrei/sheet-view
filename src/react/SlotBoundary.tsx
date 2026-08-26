@@ -13,23 +13,15 @@ interface SlotBoundaryState {
 }
 
 /**
- * @internal Contains a throw to the one slot that threw.
- *
- * `<SheetHost>` mounts at the app root, so without this a throw anywhere in sheet
- * content propagates to the root and unmounts the whole application. Containing
- * that is mechanism, not policy — the library owes you "one sheet can't take out
- * your app" the same way it owes you "the scroll lock is always released". What to
- * render instead is app-level, so this renders nothing and stays out of the way.
- *
- * One boundary per slot, not one per sheet: a crashing `content` then leaves the
- * default header and its close button intact, so the sheet is still dismissable.
- * A single boundary around every portal would blank the sheet into a void the user
- * cannot escape.
+ * @internal Contains a throw to the one slot that threw. `<SheetHost>` mounts at
+ * the app root, so without this a throw in sheet content unmounts the whole app.
+ * One boundary per slot: a crashing `content` leaves the header and its close
+ * button intact, so the sheet stays dismissable.
  */
 export class SlotBoundary extends Component<SlotBoundaryProps, SlotBoundaryState> {
   constructor(props: SlotBoundaryProps) {
-    // Assigned here rather than as a class property: `state` is inherited, and a
-    // property declaration would need `override` under noImplicitOverride.
+    // Assigned here, not as a class property: `state` is inherited, so a property
+    // declaration would need `override` under noImplicitOverride.
     super(props)
     this.state = {failed: false}
   }
@@ -39,8 +31,6 @@ export class SlotBoundary extends Component<SlotBoundaryProps, SlotBoundaryState
   }
 
   override componentDidCatch(error: unknown, info: ErrorInfo): void {
-    // Unconditional, not dev-gated: this IS an error, and swallowing it silently
-    // is worse than the crash it prevents.
     console.error(
       `[sheet-view] The "${this.props.slot}" slot threw and was left empty. The sheet and the rest of your app are still mounted.`,
       error,
@@ -49,8 +39,8 @@ export class SlotBoundary extends Component<SlotBoundaryProps, SlotBoundaryState
   }
 
   override render(): ReactNode {
-    // No reset heuristic: the boundary is keyed by sheet, so a new sheet always
-    // gets a fresh one, and within one sheet a failed slot stays blank until close.
+    // The boundary is keyed by sheet, so a failed slot stays blank until that
+    // sheet closes.
     return this.state.failed ? null : this.props.children
   }
 }

@@ -66,8 +66,9 @@ sheets.open({
 })
 ```
 
-`open()` returns a handle: `{id, close, update, slots}`. Slots accept a DOM node, a
-string, or a factory `(ctx) => node` receiving `{close, update}`.
+`open()` returns a handle: `{id, close, update, slots, layers, phase, onPhase}`.
+Slots accept a DOM node, a string, or a factory `(ctx) => node` receiving
+`{close, update}`.
 
 ## React
 

@@ -52,13 +52,12 @@ click in it **never dismisses the sheet**.
 It mounts in the sheet's top layer: above the card, viewport-fixed, and it does not
 follow the card.
 
-**3. Never use `position: fixed` inside the card.** The card is a fixed-positioning
-containing block *only while it is animating*, so a fixed descendant re-resolves its
-coordinates when the entrance ends and visibly jumps. Use layer 2 instead.
+**3. Never use `position: fixed` inside the card.** The card declares
+`will-change: transform`, which makes it the containing block for fixed descendants, so
+a `fixed` child resolves against the card rather than the viewport. Use layer 2 instead.
 
 **4. The `popover` attribute is not recommended.** A `[popover]` element inside the dialog does work — it is in
-the top layer and it is not inert — but it needs Safari 17 where the library's floor is
-15.4, and it buys nothing over layer 2.
+the top layer and it is not inert — but it buys nothing over layer 2.
 
 ::: warning Children must be positioned
 Both layers are `display: contents` — they generate no box, which is what stops them
@@ -110,7 +109,7 @@ Three rules follow from where the panel is mounted, whatever ends up positioning
   drag scroller needs nothing, because the panel is inside the card and rides along with
   it; so does the entrance and the exit.
 
-The [anchored dropdown demo](../examples#anchored-dropdown) is a complete worked example
+The [anchored dropdown demo](../complex#anchored-dropdown) is a complete worked example
 of all three, in about twenty lines of `getBoundingClientRect` and no dependencies.
 
 ## Paint order

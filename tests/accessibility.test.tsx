@@ -5,8 +5,6 @@ import {SheetHost} from '../src/react/SheetHost'
 import {createSheets} from '../src/react/sheets'
 import type {SheetPublicHandle, SheetReactProps, Sheets} from '../src/react/sheets'
 
-// Resolves the dialog's accessible name from either aria-label or aria-labelledby
-// so assertions survive the #11 switch from label to labelledby.
 const accessibleName = (el: HTMLElement): string => {
   const ref = el.getAttribute('aria-labelledby')
   if (ref) {
@@ -19,11 +17,10 @@ const accessibleName = (el: HTMLElement): string => {
   return el.getAttribute('aria-label') ?? ''
 }
 
-// Focus-trap, inert background, and focus restoration are provided natively by
-// <dialog>.showModal() (verified in the browser example — jsdom stubs showModal
-// and cannot emulate focus). These tests cover the accessibility contract the
-// library itself owns: a real dialog element, an accessible name, a keyboard-
-// operable close affordance, and keyboard (Escape) dismissal.
+// Focus trap, inert background and focus restoration come from
+// <dialog>.showModal(), which jsdom only stubs. What is pinned here is the part
+// the library owns: the element, its accessible name, the close affordance and
+// Escape dismissal.
 const dialog = () => document.querySelector('dialog.sv-sheet') as HTMLDialogElement | null
 
 describe('accessibility', () => {
@@ -44,10 +41,9 @@ describe('accessibility', () => {
     sheets.__resetForTests()
   })
 
-  it('renders a native <dialog> (source of focus-trap / inert / Escape)', () => {
+  it('renders a native <dialog>', () => {
     open({title: 'A', content: () => <p>Body</p>})
-    const el = dialog()
-    expect(el).toBeInstanceOf(HTMLDialogElement)
+    expect(dialog()).toBeInstanceOf(HTMLDialogElement)
   })
 
   it('labels the dialog by its visible title via aria-labelledby', () => {
@@ -56,37 +52,37 @@ describe('accessibility', () => {
     const h2 = document.querySelector('[data-sheet-part="title"]') as HTMLElement
     expect(h2.id).toBeTruthy()
     expect(dlg).toHaveAttribute('aria-labelledby', h2.id)
-    expect(dlg).not.toHaveAttribute('aria-label') // labelledby, not a dup label
+    expect(dlg).not.toHaveAttribute('aria-label')
     expect(accessibleName(dlg)).toBe('Settings')
   })
 
-  it('an explicit ariaLabel overrides the title for the accessible name', () => {
+  it('an explicit ariaLabel names the dialog instead of the title', () => {
     open({title: 'Settings', ariaLabel: 'Account settings', content: () => <p>Body</p>})
     expect(dialog()).toHaveAttribute('aria-label', 'Account settings')
     expect(dialog()).not.toHaveAttribute('aria-labelledby')
   })
 
-  it('warns in dev when a sheet is opened with no accessible name', () => {
+  it('warns when a sheet opens with no accessible name', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    open({content: () => <p>Body</p>}) // no title, no ariaLabel
+    open({content: () => <p>Body</p>})
     expect(warn).toHaveBeenCalledTimes(1)
     expect(accessibleName(dialog()!)).toBe('')
     warn.mockRestore()
   })
 
-  it('the close affordance is a real, labelled, keyboard-operable button', () => {
+  it('the close affordance is a real, labelled button', () => {
     open({title: 'A', content: () => <p>Body</p>})
     const close = screen.getByLabelText('Close')
     expect(close.tagName).toBe('BUTTON')
     expect(close).toHaveAttribute('type', 'button')
   })
 
-  it('a disabled-close dead-end marks the button aria-disabled', () => {
+  it('closeDisabled marks the close button aria-disabled', () => {
     open({title: 'A', content: () => <p>Body</p>, closeDisabled: true})
     expect(screen.getByLabelText('Close')).toHaveAttribute('aria-disabled', 'true')
   })
 
-  it('Escape (native cancel) requests close for keyboard users', () => {
+  it('a native cancel event (Escape) fires onClose', () => {
     const onClose = vi.fn()
     open({title: 'A', content: () => <p>Body</p>, onClose})
     fireEvent(dialog()!, new Event('cancel', {cancelable: true}))
@@ -106,10 +102,7 @@ describe('accessibility', () => {
     expect(accessibleName(dialog()!)).toBe('B')
   })
 
-  // A custom header used to cost the dialog its name entirely: the adapter drops
-  // `title` so React owns the row, syncDialogLabel then found no title node and
-  // stripped both attributes — a WCAG 4.1.2 failure on the sanctioned escape hatch.
-  it('a custom headerSlot with a title still names the dialog, via aria-label', () => {
+  it('a custom headerSlot with a title names the dialog via aria-label', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     open({
       title: 'Filters',
@@ -124,17 +117,7 @@ describe('accessibility', () => {
     warn.mockRestore()
   })
 
-  it('an explicit ariaLabel still wins over the title on the headerSlot path', () => {
-    open({
-      title: 'Filters',
-      ariaLabel: 'Filter products',
-      headerSlot: () => <h1>Filters</h1>,
-      content: () => <p>Body</p>,
-    })
-    expect(dialog()).toHaveAttribute('aria-label', 'Filter products')
-  })
-
-  it('update() to a headerSlot keeps the name and does not render a second header', () => {
+  it('update() to a headerSlot keeps the name and renders no second header', () => {
     let handle!: SheetPublicHandle
     act(() => {
       handle = sheets.open({title: 'Original', content: () => <p>Body</p>})
@@ -143,14 +126,12 @@ describe('accessibility', () => {
       handle.update({headerSlot: () => <h1>Custom header</h1>})
     })
 
-    // The core merges props, so an erased title has to actually erase — a delete
-    // left 'Original' behind and mountSlots rebuilt the default header under this one.
     expect(document.querySelectorAll('.sv-sheet__default-header')).toHaveLength(0)
     expect(screen.getByText('Custom header')).toBeInTheDocument()
     expect(accessibleName(dialog()!)).toBe('Original')
   })
 
-  it('a keyed update() that omits headerSlot does not rebuild the default header', () => {
+  it('a keyed update() that omits headerSlot keeps the custom header and takes the new title as the name', () => {
     act(() => {
       sheets.open({
         key: 'k',

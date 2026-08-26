@@ -1,47 +1,37 @@
-/* sheet-view — base.css (REQUIRED)
+/* sheet-view, base.css (REQUIRED)
  *
  * Structural styles the sheet cannot function without: full-viewport dialog,
  * the scroll-snap drag container, snap points, card layout, size variants, the
- * desktop centering, and the MOTION (see the Motion section at the bottom — the
- * entrance is a mechanism, not a skin). NO colors, radii, or shadows live here —
+ * desktop centering, and the motion. No colors, radii, or shadows live here,
  * bring your own skin, or import `sheet-view/theme.css`.
  *
  * Deliberately UNLAYERED: the gesture-critical rules (scroll-snap, positioning,
  * touch / overscroll behavior, the entrance keyframes) must not lose a
  * specificity battle to a consumer's unlayered utility class (e.g. Tailwind v3),
- * which would silently break dragging. Unlayered here = always wins over layered
- * consumer styles.
+ * which would silently break dragging.
  *
  * Styling API: target `[data-sheet-part="…"]`, `[data-sheet-state="…"]`,
  * `[data-sheet-size="…"]`, or the mirrored `.sv-sheet__*` classes. Both are
- * frozen — renames are a semver-major change.
+ * frozen, renames are a semver-major change.
  */
 
-/* ── Scroll lock ─────────────────────────────────────────────────────────
- * The page lock is these attribute-scoped rules + `data-sheet-scroll-lock` on
- * <html> (set by core/locks.ts) — never an inline `style.overflow` write.
- * Third-party scroll locks (Headless UI, body-scroll-lock, …) save/restore the
- * inline register on the same elements, and some read it back to decide whether
- * they hold a lock at all; writing it from two owners corrupts whichever
- * teardown runs second. Attribute on/off composes with all of them in any order.
- *
- * The attribute is doubled for (0,2,1) specificity: beats a page-level
- * `html.foo { overflow: … }` without !important. Staying below inline styles is
- * deliberate — while a foreign lock holds the inline register both values lock,
- * and its restore must find its own value, not ours.
- */
+/* The page lock is these attribute-scoped rules plus `data-sheet-scroll-lock` on
+   <html> (core/locks.ts), never an inline `style.overflow` write: third-party
+   scroll locks own that register, and their restore must find their own value.
+   The attribute is doubled for (0,2,1), which beats a page-level
+   `html.foo { overflow: … }` without !important and stays below inline styles. */
 html[data-sheet-scroll-lock][data-sheet-scroll-lock] {
   overflow: clip;
 }
 html[data-sheet-scroll-lock][data-sheet-scroll-lock] body {
   overflow: clip;
 }
-/* Scrollbar-gap reservation: the width the vanished scrollbar occupied, folded
-   into the value locks.ts measured (page padding + gap). */
+/* Scrollbar-gap reservation: locks.ts folds page padding and the width the
+   scrollbar occupied into one measured value. */
 html[data-sheet-scroll-gap][data-sheet-scroll-gap] body {
   padding-right: var(--_sheet-lock-pr);
 }
-/* iOS keyboard-proof pin for document-scrolled pages — see locks.ts. */
+/* Keyboard-proof pin for document-scrolled pages, see locks.ts. */
 html[data-sheet-scroll-pin][data-sheet-scroll-pin] body {
   position: fixed;
   top: var(--_sheet-lock-top);
@@ -51,7 +41,6 @@ html[data-sheet-scroll-pin][data-sheet-scroll-pin] body {
   box-sizing: border-box;
 }
 
-/* Dialog — full-viewport modal, transparent, no default centered layout */
 .sv-sheet {
   position: fixed;
   inset: 0;
@@ -70,15 +59,15 @@ html[data-sheet-scroll-pin][data-sheet-scroll-pin] body {
   display: none;
 }
 
-/* Native ::backdrop stays transparent — the real dim is .sv-sheet__backdrop, a
-   regular child, because ::backdrop can't transition out across dialog.close(). */
+/* The real dim is `.sv-sheet__backdrop`, a regular child: `::backdrop` cannot
+   transition out across dialog.close(). */
 .sv-sheet::backdrop {
   background: transparent;
 }
 
-/* In-dialog dim layer. Mobile: opacity driven imperatively per scroll frame,
-   coupled to the scroll-snap position. Desktop: toggled by state (below).
-   Colour + blur live in the theme; the fade timing is in Motion, below. */
+/* In-dialog dim layer. Mobile drives the opacity per scroll frame, coupled to
+   the scroll-snap position; desktop toggles it by state. Colour and blur live in
+   the theme. */
 .sv-sheet__backdrop {
   position: absolute;
   inset: 0;
@@ -86,8 +75,8 @@ html[data-sheet-scroll-pin][data-sheet-scroll-pin] body {
   pointer-events: none;
 }
 
-/* Scroll-snap container — drives drag-to-close on mobile. overscroll-behavior:
-   none (not contain) kills iOS rubber-band past either snap edge. */
+/* Scroll-snap container: drives drag-to-close on mobile. `overscroll-behavior:
+   none`, not contain, kills the rubber-band past either snap edge. */
 .sv-sheet__scroll {
   position: relative;
   height: 100%;
@@ -96,14 +85,10 @@ html[data-sheet-scroll-pin][data-sheet-scroll-pin] body {
   overflow-x: hidden;
   scroll-snap-type: y mandatory;
   scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
   overscroll-behavior: none;
 }
-.sv-sheet__scroll::-webkit-scrollbar {
-  display: none;
-}
 
-/* Closed snap area — transparent spacer holding scrollTop=0 = closed */
+/* Closed snap area: scrollTop 0 is closed. */
 .sv-sheet__spacer {
   width: 100%;
   height: 100dvh;
@@ -113,7 +98,7 @@ html[data-sheet-scroll-pin][data-sheet-scroll-pin] body {
   background: transparent;
 }
 
-/* Open snap area — full viewport height, card bottom-aligned */
+/* Open snap area: scrolled one viewport down is open. */
 .sv-sheet__panel {
   width: 100%;
   height: 100dvh;
@@ -126,15 +111,10 @@ html[data-sheet-scroll-pin][data-sheet-scroll-pin] body {
   position: relative;
 }
 
-/* Card — the visible surface. position: relative anchors overlay decorations;
-   no overflow clip so those decorations can extend past its edges. */
-/* Card — the visible surface. `position: relative` is CONTRACT, not incidental:
-   it is the offsetParent that `layers.anchored` children position against.
-   `isolation: isolate` makes the card a stacking context at rest, so a consumer
-   z-index inside a slot can never cross a sheet-part boundary — and, crucially,
-   behaves the same at rest as it does mid-animation (a live transform makes the
-   card a stacking context on its own; without this, paint order would flip for
-   the duration of the entrance). */
+/* Card: the visible surface. `position: relative` is contract, it is the
+   offsetParent `layers.anchored` children position against. `isolation: isolate`
+   makes the stacking context exist at rest, so paint order does not flip when a
+   live transform creates one. */
 .sv-sheet__card {
   position: relative;
   isolation: isolate;
@@ -144,23 +124,20 @@ html[data-sheet-scroll-pin][data-sheet-scroll-pin] body {
   min-height: 0;
 }
 
-/* ── Geometry ────────────────────────────────────────────────────────────────
- * Card size per `size` bucket. Same shape as the Motion tokens below: each public
- * token is read ONCE here, and every use site consumes only the private mirror —
- * so a consumer override can't be defeated by a use site that forgot the fallback.
- *
- * `--sheet-width` / `--sheet-height` (no suffix) sit in FRONT of the per-bucket
- * tokens, so setting one overrides every bucket at once and `size` then only
- * carries the other axis. That's the arbitrary-size escape: `size` stays a
- * four-value enum instead of degenerating into a carrier for a width override.
- *
- * The viewport clamps stay in here on purpose — `min(…, 100vw - inset)` is the
- * part that's easy to forget when overriding, and forgetting it breaks narrow
- * desktop windows.
+/* Geometry: card size per `size` bucket. Same shape as the motion tokens below,
+ * each public token is read once here and every use site consumes only the
+ * private mirror, so an override can't be defeated by a use site that forgot the
+ * fallback. `--sheet-width` / `--sheet-height` (no suffix) sit in FRONT of the
+ * per-bucket tokens, so setting one overrides every bucket at once and `size`
+ * then only carries the other axis.
  */
 .sv-sheet {
-  /* Space between the viewport edge and the card. */
-  --_sheet-inset: var(--sheet-inset, 40px);
+  /* Space between the viewport edge and the card. --_sheet-nest folds in the
+     stack peek, making a sheet opened over another exactly one peek shorter,
+     which leaves the strip of the covered card visible above it. */
+  --_sheet-stack-peek: 10px;
+  --_sheet-nest: 0px;
+  --_sheet-inset: calc(var(--sheet-inset, 40px) + var(--_sheet-nest));
   --_sheet-inset-desktop: var(--sheet-inset-desktop, 64px);
 
   /* Mobile card height, per bucket. */
@@ -184,18 +161,22 @@ html[data-sheet-scroll-pin][data-sheet-scroll-pin] body {
   --_sheet-max-width: calc(100vw - var(--_sheet-inset-desktop));
   --_sheet-max-height-desktop: calc(100vh - var(--_sheet-inset-desktop));
 
-  /* Default-header row gap. One token for the whole row: flex `gap` is uniform,
-     so icon↔title can't differ from title↔close without an extra wrapper, and
-     that would change a documented DOM surface. Structural, not skin — without
-     it the title and the close button touch — so it lives here, not in the theme
-     alongside --sheet-header-padding. */
+  /* Default-header row gap: one token for the whole row, since flex `gap` is
+     uniform. Structural, not skin, without it the title and the close button
+     touch, so it lives here rather than beside --sheet-header-padding. */
   --_sheet-header-gap: var(--sheet-header-gap, 16px);
 }
 
-/* Mobile size variants — card height inside the 100dvh panel. Scoped to mobile
-   so the desktop widths (below) aren't fighting a height. Four separate rules,
-   not one: at (0,2,0) these beat an unlayered consumer utility (`max-h-full`),
-   where a single (0,1,0) rule would only tie and lose on source order. */
+/* Written at open() and fixed for the sheet's lifetime. The sm/md heights don't
+   read the inset, so only a full-height card shortens. */
+.sv-sheet[data-sheet-nested] {
+  --_sheet-nest: var(--_sheet-stack-peek);
+}
+
+/* Mobile size variants: card height inside the 100dvh panel. Four separate
+   rules, not one: at (0,2,0) these beat an unlayered consumer utility
+   (`max-h-full`), where a single (0,1,0) rule would tie and lose on source
+   order. */
 @media (max-width: 767px) {
   .sv-sheet__card[data-sheet-size='sm'] {
     height: var(--_sheet-height-sm);
@@ -227,20 +208,18 @@ html[data-sheet-scroll-pin][data-sheet-scroll-pin] body {
   flex-shrink: 0;
 }
 
-/* Scrollable content area. No built-in padding — consumer bodies bring their own.
-   Deliberately NO `position`: adding one would make this the containing block for
-   absolute descendants and re-arm this clip on them. A panel that must escape the
-   body belongs in `layers.anchored`, whose containing block is the card. */
+/* Scrollable content area. No built-in padding, consumer bodies bring their own.
+   Deliberately no `position`: one would make this the containing block for
+   absolute descendants and re-arm this clip on them. A panel that must escape
+   the body belongs in `layers.anchored`, whose containing block is the card. */
 .sv-sheet__content {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 }
 
-/* Footer — collapses when empty; safe-area padding is structural */
 .sv-sheet__footer {
   flex-shrink: 0;
   padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -249,15 +228,15 @@ html[data-sheet-scroll-pin][data-sheet-scroll-pin] body {
   display: none;
 }
 
-/* Overlay slot — boxless wrapper so portaled decorations behave as direct
-   card children (anchored to the card, free to extend past its edges). */
+/* Overlay slot: boxless, so portaled decorations behave as direct card children,
+   anchored to the card and free to extend past its edges. */
 .sv-sheet__overlay {
   display: contents;
 }
 
-/* Top-layer escape hatch — last child of the <dialog>, so it's inside the modal
-   top layer and paints above backdrop + card. isolate for the same reason the
-   card does: a fixed paint order that doesn't depend on consumer z-index. */
+/* Top-layer escape hatch: last child of the <dialog>, so it is inside the modal
+   top layer and paints above backdrop and card. `isolation: isolate` for the same
+   reason the card carries it, a paint order independent of consumer z-index. */
 .sv-sheet__toplayer {
   position: fixed;
   inset: 0;
@@ -265,33 +244,30 @@ html[data-sheet-scroll-pin][data-sheet-scroll-pin] body {
   pointer-events: none;
 }
 
-/* ── Popover mount points ────────────────────────────────────────────────
- * Both are boxless. That is the whole design: a real `inset: 0` wrapper with
- * pointer-events:auto would cover the viewport and swallow backdrop-dismiss AND
- * drag-to-close, while `display: contents` generates no box to hit-test yet still
- * passes inherited pointer-events down to children, which do generate boxes.
+/* Popover mount points. Both are boxless: an `inset: 0` wrapper with
+ * pointer-events:auto would cover the viewport and swallow backdrop-dismiss and
+ * drag-to-close, while `display: contents` generates no box to hit-test yet
+ * still passes inherited pointer-events to children, which do generate boxes.
  */
 
-/* Anchored panels — inside the card, so they are unclipped (the card has no
-   overflow), they ride the card through the entrance/drag/exit with zero
-   repositioning, and a press here is inside the card, so it never dismisses.
-   Children MUST be positioned: a static child becomes a flex item of the card. */
+/* Anchored panels sit inside the card, so they are unclipped, they ride the card
+   through entrance, drag and exit with no repositioning, and a press here counts
+   as inside the card, so it never dismisses. Children MUST be positioned: a
+   static child becomes a flex item of the card. */
 .sv-sheet__anchor-layer {
   display: contents;
 }
 
-/* Viewport-anchored overlays — toasts, palettes. Re-arms pointer events for its
-   children, so a panel mounted here doesn't have to do it itself. */
+/* Viewport-anchored overlays: toasts, palettes. */
 .sv-sheet__viewport-layer {
   display: contents;
   pointer-events: auto;
 }
 
 /* A closing sheet must not stay clickable. The close path arms
-   `.sv-sheet__scroll` inline (covering the card and the anchor layer inside it),
-   but the top layer escapes that — and its children may have re-armed pointer
-   events themselves, hence the descendant selector. Unlayered (0,2,0)/(0,2,1),
-   so a consumer's layered utility can't win it back. */
+   `.sv-sheet__scroll` inline, covering the card and the anchor layer inside it,
+   but the top layer escapes that and its children may have re-armed pointer
+   events themselves, hence the descendant selector. */
 .sv-sheet[data-sheet-state='closing'] .sv-sheet__toplayer,
 .sv-sheet[data-sheet-state='closing'] .sv-sheet__toplayer * {
   pointer-events: none;
@@ -304,10 +280,9 @@ html[data-sheet-scroll-pin][data-sheet-scroll-pin] body {
   justify-content: space-between;
   gap: var(--_sheet-header-gap);
 }
-/* Leading glyph. inline-flex + shrink-proof so it can't be squeezed by a long
-   title; sizing is the consumer's (their SVG sizes itself). Empty until they
-   fill it — the React bridge portals in a commit later — so collapse it,
-   the same contract as .sv-sheet__footer:empty. */
+/* Leading glyph, shrink-proof against a long title; sizing is the consumer's.
+   It collapses while empty, since an external renderer may fill it a frame
+   late. */
 .sv-sheet__icon {
   flex-shrink: 0;
   display: inline-flex;
@@ -330,16 +305,13 @@ html[data-sheet-scroll-pin][data-sheet-scroll-pin] body {
   -webkit-tap-highlight-color: transparent;
   position: relative;
   /* Reset the native button so a global `button {}` reset on the host page can't
-     hijack the close control: this class selector (0,1,0), unlayered, beats a bare
-     `button` (0,0,1); appearance:none drops the native face, and a transparent
-     background lets the themed card show through. The skin (border, size, colour)
-     stays in theme.css so it's still token-overridable. */
+     hijack the close control: this class selector (0,1,0), unlayered, beats a
+     bare `button` (0,0,1). The skin stays in theme.css, token-overridable. */
   appearance: none;
-  -webkit-appearance: none;
   background: transparent;
 }
-/* Expand the touch target to ≥44×44 (HIG / WCAG 2.5.5) without growing the
-   visible button — the centered pseudo-element is the actual hit area. */
+/* The hit area: at least 44x44 (WCAG 2.5.5) without growing the visible
+   button. */
 .sv-sheet__close::before {
   content: '';
   position: absolute;
@@ -351,13 +323,11 @@ html[data-sheet-scroll-pin][data-sheet-scroll-pin] body {
 .sv-sheet__close[aria-disabled='true'] {
   cursor: not-allowed;
 }
-/* Close glyph — a stable node the consumer fills, mirroring `.sv-sheet__icon`.
-   The default × lives HERE rather than in JS so it yields the instant anything
-   lands in the node — a vanilla Node, a string, or a React commit — with no
-   core↔adapter coordination and no frame where both glyphs show. It also means
-   `mountSlot`'s zero-length text node must stay zero-length: per Selectors 3,
-   empty text nodes don't affect `:empty`, which is what keeps the × as the
-   fallback when a slot resolves to nothing. Sized by the button's font-size. */
+/* Close glyph: a stable node the consumer fills. The default × lives here rather
+   than in JS so it yields the instant anything lands in the node, with no frame
+   where both glyphs show. `mountSlot`'s zero-length text node must stay
+   zero-length: per Selectors 3, empty text nodes don't affect `:empty`, which is
+   what keeps the × as the fallback when a slot resolves to nothing. */
 .sv-sheet__close-icon {
   display: inline-flex;
   align-items: center;
@@ -367,7 +337,7 @@ html[data-sheet-scroll-pin][data-sheet-scroll-pin] body {
   content: '×';
 }
 
-/* Desktop — centered card, no scroll-snap drag-to-close */
+/* Desktop: centered card, no scroll-snap drag-to-close */
 @media (min-width: 768px) {
   .sv-sheet__scroll {
     scroll-snap-type: none;
@@ -390,8 +360,8 @@ html[data-sheet-scroll-pin][data-sheet-scroll-pin] body {
     max-height: var(--_sheet-max-height-desktop);
     margin: 0 auto;
   }
-  /* Every bucket carries the clamp, including sm/md — a no-op at the defaults
-     (100vw - 64px is well past 560px at ≥768px), a real guard once overridden. */
+  /* Every bucket carries the clamp, including sm/md, where it is a no-op at the
+     defaults and a real guard once overridden. */
   .sv-sheet__card[data-sheet-size='sm'] {
     width: min(var(--_sheet-width-sm), var(--_sheet-max-width));
   }
@@ -406,169 +376,263 @@ html[data-sheet-scroll-pin][data-sheet-scroll-pin] body {
   }
 }
 
-/* ── Motion ──────────────────────────────────────────────────────────────────
- * Here and NOT in the optional theme: the entrance is a mechanism, not a skin.
- * The JS open path deliberately never animates the scroll (iOS Safari won't
- * animate scrollTo() inside a `scroll-snap-type: mandatory` scroller — it jumps),
- * so it parks the scroller AT the open snap point and these keyframes ARE the
- * entrance. Without them a themeless sheet teleports in while its dim fades, and
- * the JS timings (closeMs / dragCloseMs / openSettleMs) budget for nothing.
- * Same argument as scroll-snap above: unlayered, so it can't lose the cascade.
+/* Stack. Three attributes, written by core/sheetCore.ts, all stable styling
+ * hooks (renaming one is semver-major):
  *
- * Every duration is a public token, so motion stays tunable without a specificity
- * fight — `--sheet-enter-duration: 0s` turns the entrance off. The core's
- * `enterMs` option mirrors into the PRIVATE `--_sheet-enter-ms` below, so a CSS
- * override of the public token still wins over it.
+ *   data-sheet-stack   position: absent = top, 'covered', 'buried', 'hidden'.
+ *   data-sheet-nested  opened over another sheet, fixed for the sheet's life.
+ *   data-sheet-recede  this card holds the receded pose.
+ *
+ * No rule here carries a standing transition: the core animates every role flip
+ * on the duration and curve of the event that caused it, and drives these poses
+ * per frame during a drag.
+ */
+/* A hidden card is pixel-identical to the buried one in front of it, so it stops
+   painting while holding its pose.
+
+   `visibility`, not `content-visibility`: content-visibility skips layout as
+   well as paint, and WebKit does not invalidate the skipped layout when it is
+   removed, so a revealed sheet comes back with its text never laid out, and a
+   forced reflow does not repair it.
+
+   Scoped to the scroller and the top layer, never the whole dialog: the dialog
+   also owns the full-viewport backdrop, and the deepest sheet is the one
+   carrying the page dim. */
+.sv-sheet[data-sheet-stack='hidden'] .sv-sheet__scroll,
+.sv-sheet[data-sheet-stack='hidden'] .sv-sheet__toplayer {
+  visibility: hidden;
+}
+
+/* The card's own dim: a shade over exactly this card, never the viewport.
+   Structure here, colour in the theme. The core writes the opacity inline per
+   stack role, 0.6 directly under the top card and 0.8 deeper, and drives it per
+   drag frame. Top z-index inside the card's own stacking context, so it shades
+   every card part including anchored popovers, and nothing outside. */
+.sv-sheet__scrim {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 2147483647;
+}
+
+/* Top-centre origin keeps the covered card's top edge still as it shrinks, so
+   the peek strip is exactly the height difference. It sits on the resting card
+   rather than in the pose rules below, because promotion removes the attribute
+   and an origin declared only there would snap back to `center` mid-scale and
+   re-anchor the card in one frame.
+
+   The pose rules below hold the card while nothing is animating; a drag
+   overrides them with inline per-frame values. A posed card is a containing
+   block for fixed descendants, which is why card content uses the anchored layer
+   instead of position:fixed. */
+.sv-sheet__card {
+  transform-origin: top center;
+}
+/* The pose is mobile only: a desktop stack is one floating card exactly on the
+   next, with only the dim marking depth, so desktop gets no pose rule.
+   `data-sheet-recede` is still written there for consumers to style against. */
+@media (max-width: 767px) {
+  /* The vertical pose is the core-computed --_sheet-stack-ty: the station
+     constant (±peek, folding in whether this card and its neighbours are
+     nested) plus, for a shorter card riding a full-height one, the offset that
+     keeps their bottom edges flush. One rule for every station. */
+  .sv-sheet[data-sheet-recede] .sv-sheet__card {
+    transform: translateY(var(--_sheet-stack-ty, 0px))
+      scale(var(--_sheet-recede-scale, 1));
+  }
+
+  /* Reduced motion removes the POSE, not just its movement: every card returns
+     to its natural rect and only the dims mark the depth. Same specificity as
+     the rule above, later in source. The core also skips the per-frame drag
+     drive under this preference. */
+  @media (prefers-reduced-motion: reduce) {
+    .sv-sheet[data-sheet-recede] .sv-sheet__card {
+      transform: none;
+    }
+  }
+}
+
+/* Motion. The entrance lives here, not in the optional theme, because it is a
+ * mechanism rather than a skin. The open path never animates the scroll (WebKit
+ * refuses to animate scrollTo inside a mandatory snap scroller and jumps
+ * instead), so it parks the scroller at the open snap point and these keyframes
+ * are the whole entrance. Every duration is a public token.
  */
 .sv-sheet {
-  --_sheet-enter: var(--sheet-enter-duration, var(--_sheet-enter-ms, 400ms));
-  --_sheet-enter-easing: var(--sheet-enter-easing, cubic-bezier(0.32, 0.72, 0, 1));
-  /* focusOnOpen travels less (24px, not a viewport), so it defaults to a
-     proportionally shorter rise — still one source of truth. */
+  --_sheet-enter: var(--sheet-enter-duration, var(--_sheet-enter-ms, 507ms));
+  /* Every timing function is a cubic bezier because WebKit does not run
+     `linear()` on the compositor. These MIRROR the easings in core/gestures.ts;
+     change both or a receding card stops tracking the incoming one. */
+  --_sheet-enter-easing: var(--sheet-enter-easing, cubic-bezier(0.3, 0.54, 0.05, 0.995));
+  /* focusOnOpen travels 24px instead of a viewport, so it gets a proportionally
+     shorter duration from the same token. */
   --_sheet-enter-focus: var(
     --sheet-enter-duration-focus,
     calc(var(--_sheet-enter) * 0.75)
   );
-  --_sheet-exit: var(--sheet-exit-duration, 250ms);
-  --_sheet-backdrop-fade: var(--sheet-backdrop-duration, 250ms);
+  --_sheet-exit: var(--sheet-exit-duration, 517ms);
+  /* Carries the CSS-driven exits: the backdrop transitions at both widths. */
+  --_sheet-exit-easing: var(--sheet-exit-easing, cubic-bezier(0.295, 0.46, 0.06, 0.99));
+  /* For consumers targeting the flick. The flick itself lives in
+     core/gestures.ts, since only JS knows the distance. */
+  --_sheet-flick-easing: var(--sheet-flick-easing, cubic-bezier(0.32, 0.73, 0.04, 1));
 }
 
-@keyframes sv-sheet-slide-up {
-  from {
-    transform: translateY(100%);
-  }
-  to {
-    transform: translateY(0);
-  }
+/* Two keyframe sets carry every entrance, two stops each: the whole shape is the
+   easing token above. `--_sheet-rise` is the distance, so one rise set serves
+   every entrance that travels: 100% for the mobile slide up, 24px for the
+   keyboard safe rise, calc(50dvh + 50%) for a centered desktop card. An entrance
+   that also fades runs both sets on one clock. */
+@keyframes sv-sheet-rise {
+  from { transform: translateY(var(--_sheet-rise)); }
+  to { transform: translateY(0); }
 }
 
-@keyframes sv-sheet-rise-in {
-  from {
-    transform: translateY(24px);
-    opacity: 0;
-  }
-  to {
-    transform: none;
-    opacity: 1;
-  }
+@keyframes sv-sheet-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-@keyframes sv-sheet-fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+/* Every motion moves this card by transform: entrance, recede, drag, exit, at
+   both widths. Declaring the layer up front keeps layerization out of the first
+   frame of each one, which matters most on an exit, since that starts from a
+   settled card in the same task as the click that caused it. At most three cards
+   paint at any depth, so the standing cost is bounded. */
+.sv-sheet__card {
+  will-change: transform;
 }
 
 @media (max-width: 767px) {
   /* Default entrance: the card slides up from below its resting position on a
-     GPU-composited transform while the scroller already rests at the open snap
-     point (drag-armed from frame one). */
+     composited transform, while the scroller already rests at the open snap
+     point so the drag is armed from the first frame. */
   .sv-sheet:not([data-sheet-focus-open]) .sv-sheet__card {
-    animation: sv-sheet-slide-up var(--_sheet-enter) var(--_sheet-enter-easing)
+    --_sheet-rise: 100%;
+    animation: sv-sheet-rise var(--_sheet-enter) var(--_sheet-enter-easing)
       backwards;
   }
 
-  /* Keyboard-safe entrance for focusOnOpen. The field must be on-screen the
-     instant it focuses (no iOS scroll-into-view, no page push), so the card can't
-     start a viewport below — it rises + fades into place instead. */
+  /* Keyboard safe entrance for focusOnOpen. The field has to be on screen the
+     instant it focuses, with no scroll-into-view and no page push, so the card
+     cannot start a viewport below. It rises and fades into place instead. */
   .sv-sheet[data-sheet-focus-open] .sv-sheet__card {
-    animation: sv-sheet-rise-in var(--_sheet-enter-focus) ease-out backwards;
+    --_sheet-rise: 24px;
+    animation:
+      sv-sheet-rise var(--_sheet-enter-focus) var(--_sheet-enter-easing)
+        backwards,
+      sv-sheet-fade var(--_sheet-enter-focus) var(--_sheet-enter-easing)
+        backwards;
   }
 
   /* Resting at the snap point fires one scroll frame that would snap the dim
-     straight to full; fade it in step with the card instead. Dropped once the
-     entrance settles (JS sets [data-sheet-settled]) so live drag frames set
-     opacity raw — a lingering transition lags the dim behind the finger. */
-  .sv-sheet:not([data-sheet-settled]) .sv-sheet__backdrop {
-    transition: opacity var(--_sheet-enter) ease;
+     straight to full, so it fades in step with the card instead. The `backwards`
+     fill starts it at 0 against that resting 1; it stops matching once JS sets
+     [data-sheet-settled], after which drag frames write opacity raw.
+
+     `:not([data-sheet-nested])` selects the sheet that owns the page dim at any
+     depth: a nested sheet's dim is the scrim on the card beneath it, and its own
+     backdrop rests transparent. The `:not()` takes a selector list rather than a
+     second `:not()` so the rule stays at (0,3,0), matching the closing rule
+     below, which then wins by coming later. */
+  .sv-sheet:not([data-sheet-nested], [data-sheet-settled]) .sv-sheet__backdrop {
+    animation: sv-sheet-fade var(--_sheet-enter) var(--_sheet-enter-easing)
+      backwards;
   }
   /* …and in step with the shorter rise when that's the entrance being played. */
-  .sv-sheet[data-sheet-focus-open]:not([data-sheet-settled]) .sv-sheet__backdrop {
-    transition-duration: var(--_sheet-enter-focus);
+  .sv-sheet[data-sheet-focus-open]:not([data-sheet-nested], [data-sheet-settled])
+    .sv-sheet__backdrop {
+    animation-duration: var(--_sheet-enter-focus);
   }
 
-  /* Exit. The card leaves by scrolling (the snap container glides to the closed
-     point), which no rule here can time — but the dim must still go with it. A
-     non-drag close drops the per-frame inline opacity, handing the dim back to
-     this rule so it fades on a declared timeline instead of holding full until the
-     DOM is removed. Later in source than the two rules above, same (0,3,0), so it
-     wins in both settle states. A drag-close never reaches here: it fades the dim
-     inline, already in lockstep with the card transform. */
+  /* Exit fallback for the dim: a reduced-motion close drops the inline opacity
+     and hands the dim to this rule, so it fades on a declared timeline instead
+     of holding full until the DOM is removed. Later in source than the two rules
+     above and at the same specificity, so it wins in both settle states. A
+     normal close fades the dim inline, in lockstep with the card. */
   .sv-sheet[data-sheet-state='closing'] .sv-sheet__backdrop {
     opacity: 0;
-    transition: opacity var(--_sheet-exit) ease;
+    transition: opacity var(--_sheet-exit) var(--_sheet-exit-easing);
   }
 }
 
 @media (min-width: 768px) {
-  /* Entrance. Card and dim cross-fade on ONE token, both starting at the element's
-     first style resolution — the same "one timeline" contract mobile has above.
-     It has to be an ANIMATION, not a state-driven transition: a transition needs a
-     before-change style, so it cannot begin until the frame after JS flips
-     `data-sheet-state` to 'open'. Driving the dim that way (and leaving the card
-     with no entrance at all) is what made the card land a whole fade ahead of it.
-     A cross-fade rather than a rise also means reduced-motion needs no override —
-     this already IS the reduced form, on the shorter token from the block below. */
-  .sv-sheet__card,
-  .sv-sheet__backdrop {
-    animation: sv-sheet-fade-in var(--_sheet-backdrop-fade) ease backwards;
-  }
-  /* Desktop dim rests visible, so nothing about the entrance depends on the state
-     attribute. Colour and blur still live in the theme. */
-  .sv-sheet__backdrop {
-    opacity: 1;
-    transition: opacity var(--_sheet-backdrop-fade) ease;
-  }
-  /* Exit. No drag-to-close here, so it is state-driven. Transitions outrank
-     animations in the cascade, which is what lets these win over a still-running
-     entrance when a sheet is closed mid-fade. */
+  /* Entrance: the card rises from off the bottom edge and the dim fades in
+     beside it, on one pair of tokens, both starting at the element's first style
+     resolution. An animation rather than a state-driven transition, because a
+     transition needs a before-change style and so cannot begin until the frame
+     after JS writes `data-sheet-state`, which lands the card a whole fade ahead
+     of the dim.
+
+     The rise is exact for a centered card: half the viewport plus half the card
+     puts its top edge on the bottom edge of the screen, and a percentage in
+     translateY resolves against the card's own height. The exit travels the same
+     distance, computed the same way in core/gestures.ts.
+
+     Every card rides it, nested or not. A nested one lands on a card of the same
+     size in the same place, so it may never FADE: mid-fade the card underneath
+     shows straight through it, two headers and two close buttons legible at
+     once. Travelling is fine, an opaque card sliding over another is how a stack
+     reads. */
   .sv-sheet__card {
-    transition:
-      transform var(--_sheet-exit) ease,
-      opacity var(--_sheet-exit) ease;
+    --_sheet-rise: calc(50dvh + 50%);
+    animation: sv-sheet-rise var(--_sheet-enter) var(--_sheet-enter-easing)
+      backwards;
   }
-  .sv-sheet[data-sheet-state='closing'] .sv-sheet__card {
-    transform: translateY(20px);
-    opacity: 0;
+  .sv-sheet:not([data-sheet-nested]) .sv-sheet__backdrop {
+    animation: sv-sheet-fade var(--_sheet-enter) var(--_sheet-enter-easing)
+      backwards;
   }
-  .sv-sheet[data-sheet-state='closing'] .sv-sheet__backdrop {
-    opacity: 0;
+  /* Only the bottom sheet's backdrop dims the page, and it rests visible, so
+     nothing about the entrance depends on the state attribute. Colour and blur
+     live in the theme. */
+  .sv-sheet:not([data-sheet-nested]) .sv-sheet__backdrop {
+    opacity: 1;
+  }
+  /* The one register handed to CSS here: a nested sheet whose undersheets all
+     closed becomes the bottom-most one, and the core writes it the page dim
+     inline, which this carries. Suspended for a closing sheet, because the exit
+     animates the same register from JS and a transition would outrank it. The
+     card's own exit lives entirely in runDesktopExit. */
+  .sv-sheet:not([data-sheet-state='closing']) .sv-sheet__backdrop {
+    transition: opacity var(--_sheet-exit) var(--_sheet-exit-easing);
   }
 }
 
-/* Reduce Motion (HIG / WCAG 2.3.3): replace the slide / rise with a cross-fade
-   rather than removing the animation — the sheet still appears, just without the
-   large translate. Public tokens are still honoured (set them to 0s to go
-   motionless); `enterMs` is deliberately not, so an app's longer flourish can't
-   override the user's preference. */
+/* Reduce Motion (WCAG 2.3.3): the slide becomes a cross-fade rather than
+   nothing, so the sheet still appears, just without the large translate. Public
+   tokens are honoured here, set them to 0s to go motionless. `enterMs` is not,
+   so an app cannot override the preference. */
 @media (prefers-reduced-motion: reduce) {
   .sv-sheet {
     --_sheet-enter: var(--sheet-enter-duration, 200ms);
-    /* Both entrances collapse to the same cross-fade here, so the focus variant
-       stops being the shorter one — no 0.75 scaling. */
+    /* Both entrances are the same cross-fade here, so the focus variant is not
+       the shorter one, no 0.75 scaling. */
     --_sheet-enter-focus: var(--sheet-enter-duration-focus, var(--_sheet-enter));
     --_sheet-exit: var(--sheet-exit-duration, 200ms);
-    --_sheet-backdrop-fade: var(--sheet-backdrop-duration, 200ms);
   }
 
   @media (max-width: 767px) {
-    /* Selectors mirror the slide-up / rise-in specificity (both 0,3,0) and come
-       later in source, so this cross-fade wins over them. */
+    /* Same specificity as the slide-up and rise-in rules, later in source, so
+       this cross-fade wins over both. */
     .sv-sheet:not([data-sheet-focus-open]) .sv-sheet__card,
     .sv-sheet[data-sheet-focus-open] .sv-sheet__card {
-      animation: sv-sheet-fade-in var(--_sheet-enter) ease-out both;
+      animation: sv-sheet-fade var(--_sheet-enter) linear both;
     }
-    /* The dim needs no rule of its own: the entrance fade above already reads
-       --_sheet-enter (200ms here), and after settle it goes raw so a drag and a
-       drag-close clear it in step with the card instead of fading behind it. */
   }
 
   @media (min-width: 768px) {
-    .sv-sheet[data-sheet-state='closing'] .sv-sheet__card {
-      transform: none;
+    /* Same specificity as the rise rule, later in source, so swapping the
+       keyframe set is the whole change: the card cross-fades in and never
+       translates. The exit reads the preference in JS and does the same. */
+    .sv-sheet:not([data-sheet-nested]) .sv-sheet__card {
+      animation-name: sv-sheet-fade;
+    }
+    /* The nested entrance drops to nothing rather than to a cross-fade: fading a
+       nested desktop card is the one thing it may not do. */
+    .sv-sheet[data-sheet-nested] .sv-sheet__card {
+      animation: none;
     }
   }
 }

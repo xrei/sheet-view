@@ -4,10 +4,8 @@ import {createSheetCore, sheetCore} from '../core/sheetCore'
 import type {SheetCore, SheetHandle, SheetOpenProps} from '../core/types'
 
 /**
- * The `{close, update}` ctx handed to React slot factories. Its `update` is the
- * FACADE's (accepts `ReactNode` slots), not the core's — a ReactNode routed into
- * the core would resolve to nothing and wipe the very portal DOM React is
- * rendering the slot into.
+ * The `{close, update}` ctx handed to React slot factories. `update` is the
+ * facade's, so it accepts `ReactNode` slots.
  */
 export interface SheetReactContext {
   close: () => void
@@ -54,7 +52,7 @@ export interface SheetsHostBinding {
   subscribe: SheetCore['subscribe']
   getSnapshot: SheetCore['getSnapshot']
   getRenderFns: (id: number) => SheetRenderFns | undefined
-  /** The facade handle for a sheet — the ctx `update` React slots must receive. */
+  /** The facade handle for a sheet: the ctx `update` React slots must receive. */
   getHandle: (id: number) => SheetPublicHandle | undefined
 }
 
@@ -62,7 +60,7 @@ export interface SheetsHostBinding {
 export interface Sheets {
   open: (props?: SheetReactProps) => SheetPublicHandle
   closeAll: () => void
-  /** True while any open sheet has `closeDisabled` — handy for beforeunload guards. */
+  /** True while any open sheet has `closeDisabled`, handy for beforeunload guards. */
   hasLocked: () => boolean
   /** @internal */
   readonly __host: SheetsHostBinding
@@ -104,13 +102,12 @@ function toDisplayProps(
     display[k] = v
   }
   if (!includeTitle) {
-    // Erase, don't delete: the core MERGES props on update(), so deleting the key
-    // here leaves an earlier title in place, mountSlots rebuilds the default
-    // header underneath the React-owned one, and the stale <h2> keeps
-    // aria-labelledby — two headers and a name that doesn't match the visible one.
+    // Erase, don't delete: the core merges props on update(), so a deleted key
+    // leaves an earlier title in place and rebuilds the default header under the
+    // React-owned one.
     display['title'] = undefined
     // The core can't fall back to `title` once it's erased, so carry the name
-    // across ourselves rather than leaving the dialog unnamed.
+    // across rather than leave the dialog unnamed.
     if (display['ariaLabel'] === undefined && fallbackTitle) {
       display['ariaLabel'] = fallbackTitle
     }
@@ -121,8 +118,8 @@ function toDisplayProps(
 export function createSheets(core: SheetCore = createSheetCore()): Sheets {
   const renderMap = new Map<number, SheetRenderFns>()
   const publicHandleById = new Map<number, SheetPublicHandle>()
-  // Last `title` seen per sheet. An update() patch that only sets `headerSlot`
-  // carries no title, but the dialog still needs a name — this is that memory.
+  // Last `title` seen per sheet: an update() patch that only sets `headerSlot`
+  // carries no title, and the dialog still needs a name.
   const titleById = new Map<number, string>()
 
   function updateHandle(
@@ -135,7 +132,6 @@ export function createSheets(core: SheetCore = createSheetCore()): Sheets {
       renderMap.set(id, {...(renderMap.get(id) ?? {}), ...renderFns})
     }
     if (next.title != null) titleById.set(id, next.title)
-    // Title passes through only when there's no custom (React-owned) header.
     const hasCustomHeader = renderMap.get(id)?.headerSlot != null
     coreHandle.update(toDisplayProps(next, !hasCustomHeader, titleById.get(id)))
   }
@@ -143,9 +139,9 @@ export function createSheets(core: SheetCore = createSheetCore()): Sheets {
   function open(props: SheetReactProps = {}): SheetPublicHandle {
     const strategy = props.strategy ?? 'reuse'
 
-    // A keyed re-open that omits headerSlot but passes a title would otherwise
-    // rebuild the default header under the live React-owned one, so the decision
-    // has to consult the sheet already on screen, not just this call's props.
+    // A keyed re-open that omits headerSlot but passes a title would rebuild the
+    // default header under the live React-owned one, so this consults the sheet
+    // already on screen, not just this call's props.
     const live =
       props.key != null
         ? core.getSnapshot().find((e) => e.key === props.key && !e.isClosing)
