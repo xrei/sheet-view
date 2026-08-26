@@ -341,7 +341,12 @@ html[data-sheet-scroll-pin][data-sheet-scroll-pin] body {
 @media (min-width: 768px) {
   .sv-sheet__scroll {
     scroll-snap-type: none;
-    overflow: hidden;
+    /* `clip`, not `hidden`: the entrance translates the card a viewport down,
+       and a transformed descendant's bounds count into scrollable overflow, so
+       with `hidden` this box is still a scroll container — showModal()'s focus
+       then scroll-reveals the close button inside it mid-entrance, and the
+       card overshoots and snaps back. A clipped box cannot scroll at all. */
+    overflow: clip;
     display: flex;
     align-items: center;
     justify-content: center;

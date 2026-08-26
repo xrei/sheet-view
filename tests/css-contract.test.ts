@@ -195,6 +195,19 @@ describe('CSS contract', () => {
     )
   })
 
+  it('the desktop scroller is clipped, not hidden, so focus reveal cannot scroll it', () => {
+    // The entrance translates the card a viewport down, and transformed bounds
+    // count into scrollable overflow — with `hidden` the box is still a scroll
+    // container, and showModal()'s focus scroll-reveals the close button
+    // mid-entrance: the card overshoots its rest and snaps back. `clip` makes
+    // the box unscrollable entirely.
+    const desktop = base.slice(base.indexOf('@media (min-width: 768px)'))
+    const scrollRule = /\.sv-sheet__scroll \{[^}]*\}/.exec(desktop)
+    expect(scrollRule).not.toBeNull()
+    expect(scrollRule![0]).toContain('overflow: clip')
+    expect(scrollRule![0]).not.toContain('overflow: hidden')
+  })
+
   it('the scroll lock is an attribute plus a rule, so it composes with third-party inline locks', () => {
     // Third-party locks own html.style.overflow and read it back to decide
     // whether they hold a lock, so this lock never writes that register. No
