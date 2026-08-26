@@ -51,6 +51,8 @@ const footer = (ctx: SheetContext): HTMLElement => {
   start.textContent = 'Get started'
   start.style.cssText =
     'padding:9px 20px;border-radius:20px;background:var(--vp-button-brand-bg);color:var(--vp-button-brand-text);font-weight:600;text-decoration:none;transition:background-color 0.25s'
+  // The router swaps the page under the modal; the sheet has to leave with it.
+  start.addEventListener('click', () => ctx.close())
   // Same states as VPButton, so this and the hero button are identical.
   start.addEventListener('mouseenter', () => {
     start.style.background = 'var(--vp-button-brand-hover-bg)'
