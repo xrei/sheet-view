@@ -1,10 +1,83 @@
 import {vi} from 'vitest'
 
-// Test infrastructure for the mobile/gesture and scroll-lock branches, which the
-// existing suite never exercises: jsdom has no matchMedia (so makeIsMobile always
-// reports desktop) and reports 0 for layout dimensions. Everything here is opt-in
-// per file — install in beforeEach, restore in afterEach — so desktop-path tests
-// stay on the desktop path.
+/**
+ * What the core asked Element.animate() for, read back through the recording
+ * stub in setup.ts. Every leg is two keyframes plus a timing function.
+ */
+interface RecordedAnimation {
+  frames: Array<Record<string, string>>
+  effect: {getTiming: () => {duration: number; fill?: string; easing?: string}}
+  finish: () => void
+}
+export function motionOf(el: Element): RecordedAnimation | undefined {
+  const list = (el as unknown as {getAnimations?: () => RecordedAnimation[]})
+    .getAnimations?.()
+  return list?.[list.length - 1]
+}
+/** Duration in ms of the animation currently running on `el`, or NaN. */
+export function motionMs(el: Element): number {
+  return motionOf(el)?.effect.getTiming().duration ?? NaN
+}
+/** The value of `prop` at the first and last keyframe. */
+export function motionRange(el: Element, prop: string): [string, string] | undefined {
+  const f = motionOf(el)?.frames
+  if (!f?.length) return undefined
+  return [f[0]![prop]!, f[f.length - 1]![prop]!]
+}
+/** Lands the animation on `el`, the test-time stand-in for it finishing. */
+export function finishMotion(el: Element): void {
+  motionOf(el)?.finish()
+}
+
+/** The timing function the animation on `el` rides. */
+export function easingOf(el: Element): string {
+  return motionOf(el)?.effect.getTiming().easing ?? ''
+}
+
+/**
+ * True when the timing function on `el` can leave the 0-1 range, i.e. pass its
+ * target and come back: a cubic bezier with a control point outside the unit box.
+ */
+export function overshoots(el: Element): boolean {
+  const m = /cubic-bezier\(([^)]+)\)/.exec(easingOf(el))
+  if (!m) return false // linear and the named keywords are all monotone
+  const p = m[1]!.split(',').map(Number)
+  const y1 = p[1]!
+  const y2 = p[3]!
+  return y1 > 1 || y1 < 0 || y2 > 1 || y2 < 0
+}
+
+/**
+ * How far through its journey the timing function on `el` is at `frac` of the
+ * clock, 0 to 1. Non-bezier easings report `frac` unchanged.
+ */
+export function paceAt(el: Element, frac: number): number {
+  const m = /cubic-bezier\(([^)]+)\)/.exec(easingOf(el))
+  if (!m) return frac
+  const c = m[1]!.split(',').map(Number)
+  const x1 = c[0]!
+  const y1 = c[1]!
+  const x2 = c[2]!
+  const y2 = c[3]!
+  const cx = 3 * x1
+  const bx = 3 * (x2 - x1) - cx
+  const ax = 1 - cx - bx
+  let t = frac
+  for (let i = 0; i < 24; i++) {
+    const x = ((ax * t + bx) * t + cx) * t - frac
+    const d = (3 * ax * t + 2 * bx) * t + cx
+    if (Math.abs(x) < 1e-7) break
+    t -= x / (d || 1e-7)
+  }
+  const cy = 3 * y1
+  const by = 3 * (y2 - y1) - cy
+  const ay = 1 - cy - by
+  return ((ay * t + by) * t + cy) * t
+}
+
+// jsdom has no matchMedia (so makeIsMobile reports desktop) and reports 0 for
+// every layout dimension. The stubs below are opt-in per file, installed in
+// beforeEach and restored in afterEach, so desktop-path tests stay on it.
 
 interface MediaState {
   mobile: boolean
@@ -17,11 +90,10 @@ export interface MockMatchMedia {
   restore: () => void
 }
 
-// Installs a live window.matchMedia. `.matches` is resolved from mutable state on
-// every read, so a MediaQueryList captured at construction (makeIsMobile) reflects
-// later flips. setMobile/setReducedMotion mutate state and dispatch a `change`
-// event to matching listeners — but only when the resolved value actually flips,
-// matching real MediaQueryList semantics.
+// Installs a live window.matchMedia. `.matches` resolves from mutable state on
+// every read, so a MediaQueryList captured once (makeIsMobile) reflects later
+// flips. setMobile/setReducedMotion dispatch `change` only when the resolved
+// value actually flips, as a real MediaQueryList does.
 export function mockMatchMedia(initial: Partial<MediaState> = {}): MockMatchMedia {
   const state: MediaState = {
     mobile: initial.mobile ?? false,
@@ -86,13 +158,10 @@ export function mockMatchMedia(initial: Partial<MediaState> = {}): MockMatchMedi
       emit()
     },
     restore(): void {
-      // The test environment defines `matchMedia` as an accessor pair on window
-      // whose getter starts out undefined, so `window.matchMedia = mock` went
-      // through its SETTER — and re-applying the saved descriptor would hand back
-      // an accessor that still yields the mock. Drop the own property first, and
-      // only rebuild it if there was a real value to put back. Without this the
-      // mock leaks into every later suite in the file and silently puts them on
-      // the mobile path.
+      // The environment defines `matchMedia` as an accessor pair whose getter
+      // starts out undefined, so the assignment above went through its setter and
+      // re-applying the saved descriptor alone still yields the mock. Drop the own
+      // property first, and rebuild it only if there was a real value to put back.
       delete (window as {matchMedia?: unknown}).matchMedia
       if (savedValue !== undefined) {
         if (savedDescriptor) {
@@ -112,8 +181,8 @@ interface LayoutStub {
   scrollHeight?: number
 }
 
-// Overrides window/documentElement geometry (all 0 or unstubbable in jsdom).
-// Returns a restore() that puts every patched property back.
+// Overrides window and documentElement geometry, all 0 or unstubbable in jsdom.
+// The returned function puts every patched property back.
 export function stubLayout(stub: LayoutStub): () => void {
   const restores: Array<() => void> = []
 
@@ -144,8 +213,7 @@ export function stubLayout(stub: LayoutStub): () => void {
   }
 }
 
-// Stubs an element's offsetTop (always 0 in jsdom) and counts reads — lets a test
-// assert the scroll hot-path reads layout once, not once per frame.
+// Stubs an element's offsetTop (always 0 in jsdom) and counts reads of it.
 export function stubOffsetTop(
   el: HTMLElement,
   px: number,

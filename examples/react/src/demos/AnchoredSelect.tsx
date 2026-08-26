@@ -15,8 +15,8 @@ const ROW = 36
 const PANEL_HEIGHT = OPTIONS.length * ROW + 8
 
 // A dropdown with ZERO positioning dependencies, to show what the library
-// guarantees and what it leaves to you. Swap this math for a positioning library in a real
-// app — the mount point and the dismiss behaviour are what matter here.
+// guarantees and what it leaves to you. Swap this math for a positioning library
+// in a real app: the mount point and the dismiss behaviour are what matter here.
 //
 // ARIA is deliberately minimal: this demo is about positioning and dismissal, not
 // about the listbox pattern. Use your design system's combobox for that.
@@ -29,8 +29,8 @@ function SortSelect() {
 
   // Positioned against the CARD, not the viewport, because the panel is mounted
   // inside the card: both rects carry the same transform, so their difference is
-  // right even mid-entrance. `scroll` is the clip boundary — flip against it, not
-  // against the viewport, or the panel opens into a region the sheet cuts off.
+  // right even mid-entrance. `scroll` is the clip boundary, so flip against it,
+  // not against the viewport, or the panel opens into a region the sheet cuts off.
   const place = useCallback(() => {
     const trigger = triggerRef.current
     if (!trigger || !layout) return
@@ -51,7 +51,7 @@ function SortSelect() {
 
   // Only the body scroll needs a listener. The drag scroller does NOT: the panel
   // lives inside the card, so a drag-to-close carries it along at finger speed
-  // with no repositioning at all. That is the whole reason to mount it in the card.
+  // with no repositioning at all.
   useEffect(() => {
     if (!open || !layout) return
     const {content} = layout
@@ -94,7 +94,7 @@ function SortSelect() {
                 className="demo-option"
                 data-selected={opt === value || undefined}
                 onClick={() => {
-                  // This unmounts the panel mid-click — the case worth demoing.
+                  // This unmounts the panel mid-click, the case worth demoing.
                   // The press is inside the card, so it never dismisses the
                   // sheet, and the dismiss decision is taken on pointerdown, so
                   // the target being detached by click time changes nothing.

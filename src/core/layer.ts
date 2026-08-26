@@ -7,9 +7,9 @@ interface MoveBeforeParent extends Node {
 
 /**
  * Move `node` to the end of `target`. `moveBefore` (Chrome 133+) preserves live
- * state (appendChild is remove-then-insert: animations restart, focus drops),
- * but throws when either end is disconnected or cross-document — gate it and
- * fall back.
+ * state, where appendChild is remove-then-insert: animations restart, focus
+ * drops. It throws when either end is disconnected or cross-document, so it is
+ * gated with a fallback.
  */
 export function liveMove(target: HTMLElement, node: Node): void {
   const parent = target as MoveBeforeParent
@@ -30,14 +30,13 @@ export function liveMove(target: HTMLElement, node: Node): void {
 }
 
 /**
- * Self-healing for the popover mount structure: sentinels defeat "container is
- * empty ⇒ delete it" portal libs; this guard re-seats a layer such a lib
- * removes, moves or clears. Repair is idempotent, so it cannot ping-pong.
+ * Re-seats a popover layer that an external renderer removes, moves or clears.
+ * Repair is idempotent, so it cannot ping-pong.
  */
 export function guardLayers(dom: SheetDOM): () => void {
   const {anchored, viewport} = dom.layers
   const toplayer = dom.slots.toplayer
-  // [child, parent] — append also restores "layer = last child = top paint".
+  // [child, parent], append also restores "layer = last child = top paint".
   const seats: Array<[HTMLElement, HTMLElement]> = [
     [toplayer, dom.dialog],
     [anchored, dom.card],
@@ -61,18 +60,16 @@ const SWEEP_MS = 1000
 
 /**
  * Teardown parking: emit() only schedules the subscribers' re-render while
- * dialog.remove() is synchronous, so layer content that should outlive the
- * sheet would detach before its owner could re-home it. Occupied layer NODES
- * move whole into a connected receiver — no parent link ever breaks, so a
- * foreign reconciler portaling into a layer can still remove its own children.
- * Layers still parked after the grace period are dropped.
+ * dialog.remove() is synchronous, so layer content that outlives the sheet
+ * would detach before its owner can re-home it. Occupied layer NODES move whole
+ * into a connected receiver, so no parent link breaks and an external renderer
+ * can still remove its own children. Layers still parked after the grace period
+ * are dropped.
  */
 export function rescueLayers(layers: SheetLayers): void {
   const occupied = [layers.anchored, layers.viewport].filter((layer) =>
     [...layer.children].some(
-      (child) => child.getAttribute('data-sheet-part') !== 'layer-sentinel',
-    ),
-  )
+      (child) => child.getAttribute('data-sheet-part') !== 'layer-sentinel'))
   if (occupied.length === 0) return
 
   if (!receiver?.isConnected) {
@@ -87,6 +84,12 @@ export function rescueLayers(layers: SheetLayers): void {
   setTimeout(() => {
     for (const layer of occupied) {
       if (layer.parentNode === parkedIn) layer.remove()
+    }
+    // Leave the host's <body> as it was found. Emptiness is the test, not this
+    // sweep's own list: a later rescue may still be parked in the same receiver.
+    if (parkedIn.childNodes.length === 0) {
+      parkedIn.remove()
+      if (receiver === parkedIn) receiver = null
     }
   }, SWEEP_MS)
 }

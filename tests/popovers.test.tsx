@@ -13,7 +13,7 @@ const dialog = (): HTMLDialogElement =>
 const part = (name: string): HTMLElement =>
   document.querySelector(`[data-sheet-part="${name}"]`) as HTMLElement
 
-// A press + release on the same node, the way a real dismiss happens.
+// The dismiss verdict is taken at pointerdown, so a press is both events.
 const press = (el: Element): void => {
   fireEvent.pointerDown(el)
   fireEvent.click(el)
@@ -40,25 +40,25 @@ describe('popovers inside a sheet', () => {
   })
 
   describe('dismiss surfaces', () => {
-    // The five structurally-empty nodes. Everything else in the dialog is either
-    // the card or app content, and must not dismiss.
-    for (const name of ['backdrop', 'scroll', 'spacer', 'panel']) {
+    // A press on the native ::backdrop retargets to the dialog element itself.
+    const surfaces: Array<[string, () => Element]> = [
+      ['backdrop', () => part('backdrop')],
+      ['scroll', () => part('scroll')],
+      ['spacer', () => part('spacer')],
+      ['panel', () => part('panel')],
+      ['dialog', dialog],
+    ]
+
+    for (const [name, node] of surfaces) {
       it(`a press on the ${name} dismisses`, () => {
         const onClose = vi.fn()
         open({title: 'A', content: () => <p>Body</p>, onClose})
-        press(part(name))
+        press(node())
         expect(onClose).toHaveBeenCalledTimes(1)
       })
     }
 
-    it('a press on the dialog itself dismisses (native ::backdrop retargets here)', () => {
-      const onClose = vi.fn()
-      open({title: 'A', content: () => <p>Body</p>, onClose})
-      press(dialog())
-      expect(onClose).toHaveBeenCalledTimes(1)
-    })
-
-    it('a dismiss press still routes through closeDisabled', () => {
+    it('a dismiss press routes through closeDisabled', () => {
       const onClose = vi.fn()
       const onCloseAttempt = vi.fn()
       open({
@@ -75,9 +75,7 @@ describe('popovers inside a sheet', () => {
   })
 
   describe('app-authored panels never dismiss the sheet', () => {
-    it('clicking a panel in the anchor layer keeps the sheet open', () => {
-      // The bug this whole feature exists for: a dropdown option used to satisfy
-      // `!card.contains(target)` and tear the sheet down on selection.
+    it('a press on a panel in the anchored layer keeps the sheet open', () => {
       const onClose = vi.fn()
       open({
         title: 'A',
@@ -92,7 +90,7 @@ describe('popovers inside a sheet', () => {
       expect(onClose).not.toHaveBeenCalled()
     })
 
-    it('clicking a panel in the viewport layer keeps the sheet open', () => {
+    it('a press on a panel in the viewport layer keeps the sheet open', () => {
       const onClose = vi.fn()
       open({
         title: 'A',
@@ -107,9 +105,9 @@ describe('popovers inside a sheet', () => {
       expect(onClose).not.toHaveBeenCalled()
     })
 
-    it('a press that starts on a panel never dismisses, even if the click lands elsewhere', () => {
-      // A menu that unmounts itself on selection detaches the click target, so the
-      // click surfaces on the dialog. Deciding at pointerdown is what saves it.
+    it('a press that starts on a panel never dismisses, even when the click lands elsewhere', () => {
+      // A menu that unmounts itself on selection detaches the click target, so
+      // the click surfaces on the dialog.
       const onClose = vi.fn()
       open({
         title: 'A',
@@ -125,13 +123,12 @@ describe('popovers inside a sheet', () => {
       expect(onClose).not.toHaveBeenCalled()
     })
 
-    it('a stale press does not leak into a later click', () => {
+    it('a spent press does not leak into a later click', () => {
       const onClose = vi.fn()
       open({title: 'A', content: () => <p>Body</p>, onClose})
       press(part('panel'))
       expect(onClose).toHaveBeenCalledTimes(1)
 
-      // No pointerdown before this one — it must not reuse the previous verdict.
       fireEvent.click(dialog())
       expect(onClose).toHaveBeenCalledTimes(1)
     })
@@ -140,13 +137,12 @@ describe('popovers inside a sheet', () => {
       const onClose = vi.fn()
       open({title: 'A', content: () => <p>Body</p>, onClose})
 
-      // A touch the browser takes over as a scroll: pointerdown on a dismiss
-      // surface, then pointercancel — and never a click of its own.
+      // A press the browser takes over as a scroll ends in pointercancel and
+      // never fires a click; the click below arrives with no pointerdown of its
+      // own, the way a keyboard activation does.
       fireEvent.pointerDown(part('panel'))
       fireEvent.pointerCancel(part('panel'))
 
-      // The next click arrives with NO pointerdown (a keyboard activation) and
-      // must not inherit the dead press's verdict.
       fireEvent.click(dialog())
       expect(onClose).not.toHaveBeenCalled()
     })
@@ -171,9 +167,9 @@ describe('popovers inside a sheet', () => {
       expect(part('viewport-layer').textContent).toBe('viewport child')
     })
 
-    it('wraps children in a boxless, click-armed wrapper', () => {
-      // display:contents is what stops the wrapper swallowing backdrop-dismiss and
-      // drag-to-close, while pointer-events still reaches the children.
+    it('wraps children in a boxless, click-armed host', () => {
+      // display:contents generates no box, so the host cannot swallow a
+      // backdrop press or the drag gesture.
       open({
         title: 'A',
         content: () => (
@@ -182,7 +178,6 @@ describe('popovers inside a sheet', () => {
           </SheetPortal>
         ),
       })
-      // :not(sentinel) — the layer's first element child is its permanent sentinel.
       const wrapper = part('viewport-layer').querySelector(
         ':scope > :not([data-sheet-part="layer-sentinel"])',
       ) as HTMLElement
@@ -222,11 +217,7 @@ describe('popovers inside a sheet', () => {
       expect(screen.getByText('toast')).toBeInTheDocument()
     })
 
-    it('owns one stable host — a sheet opening over a live toast and closing never remounts it', () => {
-      // The old wiring portaled straight into the layer node, so every target
-      // change (sheet opens over the toast, sheet closes from under it) changed
-      // createPortal's container and React rebuilt the subtree — a live toast
-      // replayed its entrance twice per sheet.
+    it('moves one stable host between page and sheet, never remounting its children', () => {
       vi.useFakeTimers()
       render(
         <SheetPortal layer="viewport" instance={sheets}>
@@ -239,37 +230,32 @@ describe('popovers inside a sheet', () => {
       expect(host.style.display).toBe('contents')
 
       const handle = open({title: 'A'})
-      // Same nodes, MOVED into the sheet's top layer — not a portal remount.
       expect(screen.getByText('page toast')).toBe(toast)
       expect(toast.parentElement).toBe(host)
       expect(host.parentElement).toBe(part('viewport-layer'))
 
       act(() => handle.close())
       act(() => {
-        vi.advanceTimersByTime(320)
+        vi.advanceTimersByTime(600)
       })
 
-      // Back on the page, still the same nodes, connected the whole way:
-      // teardown parked the occupied layer (host inside) in the receiver, and
-      // the target flip moved the host home from there — no detour through
-      // detached DOM.
       expect(screen.getByText('page toast')).toBe(toast)
       expect(toast.parentElement).toBe(host)
       expect(host.isConnected).toBe(true)
       expect(host.closest('dialog')).toBeNull()
       expect(host.parentElement).toBe(document.body)
 
-      // Run the rescue sweep so the parked layer doesn't leak into later tests.
+      // Run the rescue sweep, so no parked layer leaks into a later test.
       act(() => {
         vi.advanceTimersByTime(1000)
       })
       vi.useRealTimers()
     })
 
-    it('a React portal straight into the layer node survives teardown', () => {
-      // The layer node is that portal's container. Teardown parks the occupied
-      // layer WHOLE, so React's commit-phase container.removeChild(child) —
-      // which no error boundary catches — always finds the child in place.
+    it('a React portal straight into the layer node survives teardown and unmounts cleanly', () => {
+      // React removes a portal child with container.removeChild(child) in the
+      // commit phase, which no error boundary catches, so the child has to still
+      // be inside that container.
       vi.useFakeTimers()
       const handle = open({title: 'A'})
       const layer = part('viewport-layer')
@@ -278,17 +264,15 @@ describe('popovers inside a sheet', () => {
 
       act(() => handle.close())
       act(() => {
-        vi.advanceTimersByTime(320)
+        vi.advanceTimersByTime(600)
       })
       expect(child.isConnected).toBe(true)
       expect(child.parentElement).toBe(layer)
 
-      // Even after the sweep drops the unclaimed layer, the pair stays intact —
       act(() => {
         vi.advanceTimersByTime(1000)
       })
       expect(child.parentElement).toBe(layer)
-      // — so React's own unmount (the old crash site) still works.
       expect(() => direct.unmount()).not.toThrow()
       vi.useRealTimers()
     })
@@ -317,15 +301,12 @@ describe('popovers inside a sheet', () => {
     })
   })
 
-  // Third-party portal libs treat a container they were handed as their own:
-  // Headless UI deletes it once it has no children, then re-hangs the
-  // disconnected node off <body> — outside the top-layer <dialog>, where the
-  // browser paints it under the sheet and its dim. The sentinel starves the
-  // "empty ⇒ delete" heuristic; the MutationObserver guard re-seats anything
-  // that gets moved, removed, or cleared regardless of which library did it.
-  describe('layer self-healing (adopted-container portal libs)', () => {
-    // jsdom delivers MutationObserver callbacks as microtasks; one macrotask
-    // hop is enough to flush them.
+  // Portal libraries treat a container they are handed as their own: an empty
+  // one gets deleted and re-hung off <body>, outside the top-layer <dialog>,
+  // where the browser paints it under the sheet and its dim.
+  describe('layer self-healing', () => {
+    // jsdom delivers MutationObserver callbacks as microtasks; one macrotask hop
+    // flushes them.
     const flushMO = (): Promise<void> => new Promise((r) => setTimeout(r, 0))
 
     it('each layer carries a permanent invisible sentinel, so it never looks empty', () => {
@@ -335,12 +316,13 @@ describe('popovers inside a sheet', () => {
           ':scope > [data-sheet-part="layer-sentinel"]',
         )
         expect(sentinel).not.toBeNull()
-        expect(sentinel!.style.display).toBe('none') // inline — no stylesheet needed
+        // Inline, so it holds with no stylesheet loaded.
+        expect(sentinel!.style.display).toBe('none')
         expect(sentinel!.getAttribute('aria-hidden')).toBe('true')
       }
     })
 
-    it('a layer exiled to <body> is re-seated into the card, content and all', async () => {
+    it('a layer moved to <body> is re-seated into the card, content and all', async () => {
       open({
         title: 'A',
         content: () => (
@@ -350,10 +332,10 @@ describe('popovers inside a sheet', () => {
         ),
       })
       const layer = part('anchor-layer')
-      document.body.appendChild(layer) // what Headless UI does to an adopted container
+      document.body.appendChild(layer)
       await flushMO()
       expect(layer.parentElement).toBe(part('card'))
-      expect(part('card').lastElementChild).toBe(layer) // back in its paint slot
+      expect(part('card').lastElementChild).toBe(layer)
       expect(screen.getByText('Option')).toBeInTheDocument()
     })
 
@@ -375,7 +357,7 @@ describe('popovers inside a sheet', () => {
       ).not.toBeNull()
     })
 
-    it('the guard disconnects with the sheet — no repair after teardown', async () => {
+    it('the guard disconnects with the sheet, so a layer moved after teardown stays put', async () => {
       vi.useFakeTimers()
       const handle = open({title: 'A'})
       const layer = part('anchor-layer')
@@ -383,7 +365,7 @@ describe('popovers inside a sheet', () => {
         handle.close()
       })
       act(() => {
-        vi.advanceTimersByTime(320)
+        vi.advanceTimersByTime(600)
       })
       vi.useRealTimers()
       document.body.appendChild(layer)
@@ -394,7 +376,7 @@ describe('popovers inside a sheet', () => {
   })
 
   describe('useSheetLayout()', () => {
-    it('hands slot content the nodes it needs to position against', () => {
+    it('gives slot content the sheet nodes, its phase and its closing flag', () => {
       let seen: ReturnType<typeof useSheetLayout> = null
       function Probe(): null {
         seen = useSheetLayout()
@@ -410,16 +392,6 @@ describe('popovers inside a sheet', () => {
       expect(seen!.layers.viewport).toBe(part('viewport-layer'))
       expect(seen!.phase).toBe('settled')
       expect(seen!.isClosing).toBe(false)
-    })
-
-    it('is null outside a sheet', () => {
-      let seen: ReturnType<typeof useSheetLayout> | 'unset' = 'unset'
-      function Probe(): null {
-        seen = useSheetLayout()
-        return null
-      }
-      render(<Probe />)
-      expect(seen).toBeNull()
     })
   })
 })

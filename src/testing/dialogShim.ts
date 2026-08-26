@@ -3,13 +3,9 @@ export type DialogShimPatch = 'open' | 'showModal' | 'show' | 'close'
 
 export interface InstallDialogShimOptions {
   /**
-   * Also translate an Escape keydown into a cancelable `cancel` event on the
-   * topmost open dialog, closing it unless something calls `preventDefault()`.
-   *
-   * Off by default. The real path is the UA's close-request algorithm over the
-   * top-layer stack, and jsdom has neither a top layer nor a focus trap — so
-   * "topmost" here is a guess (the last `dialog[open]` in the document). Prefer
-   * dispatching `cancel` yourself; turn this on when your tests press Escape.
+   * Also translate an Escape keydown into a cancelable `cancel` on the topmost
+   * open dialog. Off by default: jsdom has no top layer, so "topmost" is a guess
+   * (the last `dialog[open]`). Prefer dispatching `cancel` yourself.
    */
   cancelOnEscape?: boolean
 }
@@ -31,14 +27,11 @@ const noop = (): void => {}
  * test environment. In a real browser every member is already present and this
  * is a silent no-op.
  *
- * Guards are per-member on purpose: a jsdom that gains `showModal()` but not
- * `close()` still gets `close()` patched. An all-or-nothing guard would decline
- * silently there, the core would never see the native `close` event that
- * releases its scroll lock, and the page would stay frozen.
+ * Guards are per-member: a jsdom that gains `showModal()` but not `close()` still
+ * gets `close()` patched.
  */
 export function installDialogShim(
-  options: InstallDialogShimOptions = {},
-): DialogShim {
+  options: InstallDialogShimOptions = {}): DialogShim {
   if (typeof HTMLDialogElement === 'undefined') return {installed: [], restore: noop}
 
   const proto = HTMLDialogElement.prototype
@@ -55,9 +48,8 @@ export function installDialogShim(
     })
   }
 
-  // Only when `open` isn't already a two-way accessor. jsdom ≥ 29 reflects it
-  // correctly, so this branch is dead there — it's kept for older jsdom and for
-  // other DOM shims that ship the element without the IDL attribute.
+  // jsdom ≥ 29 reflects `open` correctly. This covers older jsdom and other DOM
+  // shims that ship the element without the IDL attribute.
   const openDescriptor = Object.getOwnPropertyDescriptor(proto, 'open')
   if (
     !openDescriptor ||
@@ -76,8 +68,8 @@ export function installDialogShim(
     })
   }
 
-  // Neither the top layer, the focus trap, nor inertness is emulated — jsdom
-  // can't host them, and faking them yields tests that pass against a fiction.
+  // Neither the top layer, the focus trap, nor inertness is emulated: jsdom
+  // can't host them.
   if (typeof proto.showModal !== 'function') {
     define('showModal', {
       enumerable: true,
@@ -102,10 +94,9 @@ export function installDialogShim(
     define('close', {
       enumerable: true,
       writable: true,
-      // Closing an already-closed dialog is a spec no-op; returning early keeps
-      // a double close() from firing two `close` events at the core's teardown.
-      // The event is dispatched synchronously — browsers queue it — because the
-      // core's teardown ordering is what tests assert on.
+      // Closing an already-closed dialog is a spec no-op: the early return keeps
+      // a double close() from firing two `close` events. The event dispatches
+      // synchronously where browsers queue it, so teardown ordering is testable.
       value: function close(this: HTMLDialogElement, returnValue?: string): void {
         if (!this.hasAttribute('open')) return
         if (returnValue !== undefined) {
@@ -124,7 +115,7 @@ export function installDialogShim(
       const topmost = open[open.length - 1]
       if (!topmost) return
       // dispatchEvent returns false once preventDefault() ran, which is how the
-      // sheet core blocks Escape — mirror that rather than closing regardless.
+      // core blocks Escape.
       if (topmost.dispatchEvent(new Event('cancel', {cancelable: true}))) {
         topmost.close()
       }

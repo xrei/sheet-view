@@ -27,8 +27,8 @@ function resolveSlot(slot: SheetSlot, ctx: SheetContext): Node | null {
   return null
 }
 
-// A nullish slot with no fallback is left UNTOUCHED — the React bridge owns that
-// node and portals into it; clearing it would wipe that content on update.
+// A nullish slot with no fallback leaves the node UNTOUCHED: an external
+// renderer may own it, and clearing would wipe its content on update.
 export function mountSlot(
   target: HTMLElement,
   slot: SheetSlot,
@@ -45,13 +45,13 @@ export function mountSlot(
 export interface DefaultHeaderOptions {
   title: string
   /**
-   * The stable icon node from `SheetSlots` — APPENDED (moved) here, never
-   * created here. mountSlots rebuilds this whole header on every `update()`, so
-   * a node created inside would be a fresh element each time and an external
-   * renderer's portal would keep writing into the detached previous one.
+   * The stable icon node from `SheetSlots`, moved here, never created here:
+   * this whole header is rebuilt on every `update()`, so a node created inside
+   * would be a fresh element each time and an external renderer would keep
+   * writing into the detached previous one.
    */
   icon: HTMLElement
-  /** The stable close-glyph node from `SheetSlots` — moved here, like `icon`. */
+  /** The stable close-glyph node from `SheetSlots`, moved here, like `icon`. */
   closeIcon: HTMLElement
   onClose: () => void
   closeMuted: boolean
@@ -76,9 +76,8 @@ export function buildDefaultHeader(opts: DefaultHeaderOptions): HTMLElement {
       ...(opts.closeMuted ? {'aria-disabled': 'true'} : {}),
     })
     // The glyph is a moved node, never text set here: the default × comes from
-    // `.sv-sheet__close-icon:empty::before`, so it yields to a consumer node or a
-    // React commit with no coordination and no window where both are visible.
-    // The button keeps its aria-label either way, so the name never changes.
+    // `.sv-sheet__close-icon:empty::before`, so it yields the instant anything
+    // lands in the node, with no window where both are visible.
     closeBtn.append(opts.closeIcon)
     closeBtn.addEventListener('click', () => opts.onClose())
     header.append(closeBtn)
@@ -86,11 +85,10 @@ export function buildDefaultHeader(opts: DefaultHeaderOptions): HTMLElement {
   return header
 }
 
-// Apply consumer root styles/tokens to the dialog. Custom props (`--x`) pass
-// through; other keys are camelCase→kebab-normalized because setProperty only
-// accepts dash-case (`setProperty('backgroundColor', …)` is a silent no-op).
-// Clears `prevKeys` first so update() can't leak a removed key; returns the keys
-// it set for the next update to clear.
+// Custom props (`--x`) pass through; other keys are camelCase→kebab-normalized
+// because setProperty only accepts dash-case (`setProperty('backgroundColor',
+// …)` is a silent no-op). Clears `prevKeys` first so update() can't leak a
+// removed key; returns the keys it set for the next update to clear.
 export function applyRootStyle(
   dialog: HTMLElement,
   style: Record<string, string> | undefined,
@@ -117,8 +115,7 @@ export function buildSheetDOM(props: SheetOpenProps): SheetDOM {
       'data-sheet-part': 'root',
       'data-sheet-state': 'opening',
       ...(props.focusOnOpen ? {'data-sheet-focus-open': ''} : {}),
-    },
-  )
+    })
   // The dialog's accessible name is wired after mount (syncDialogLabel) so a
   // default header can be referenced by aria-labelledby instead of duplicated.
 
@@ -151,11 +148,10 @@ export function buildSheetDOM(props: SheetOpenProps): SheetDOM {
     'data-sheet-part': 'header',
   })
   // Built here, not in buildDefaultHeader, so its identity survives every header
-  // rebuild. It enters the DOM only when a default header is mounted, and
-  // `.sv-sheet__icon:empty` collapses it until something fills it.
+  // rebuild. `.sv-sheet__icon:empty` collapses it until something fills it.
   const icon = createEl('span', 'sv-sheet__icon', {'data-sheet-part': 'icon'})
-  // Same deal for the close glyph — stable identity, moved into each rebuilt
-  // button. Must be created EMPTY: `:empty::before` is what paints the default ×.
+  // Same for the close glyph, moved into each rebuilt button. Must be created
+  // EMPTY: `:empty::before` is what paints the default ×.
   const closeIcon = createEl('span', 'sv-sheet__close-icon', {
     'data-sheet-part': 'close-icon',
   })
@@ -173,9 +169,17 @@ export function buildSheetDOM(props: SheetOpenProps): SheetDOM {
     'data-sheet-part': 'toplayer',
   })
 
-  // Popover mount points. `anchored` is the card's LAST child, so it paints
-  // above every other card part with no z-index; `viewport` lives in the top
-  // layer. Both are display:contents — see base.css for why that matters.
+  // The card's own dim, ending at that card's edges, never the viewport, so
+  // shade can't pile up across a deep stack. Painted above every card part
+  // (base.css gives it the top z-index inside the card's stacking context);
+  // opacity is owned by the core per stack role.
+  const scrim = createEl('div', 'sv-sheet__scrim', {
+    'data-sheet-part': 'scrim',
+    'aria-hidden': 'true',
+  })
+
+  // `anchored` is the card's last child BEFORE the scrim, so it paints above
+  // every other card part with no z-index; `viewport` lives in the top layer.
   const anchorLayer = createEl('div', 'sv-sheet__anchor-layer', {
     'data-sheet-part': 'anchor-layer',
   })
@@ -183,10 +187,10 @@ export function buildSheetDOM(props: SheetOpenProps): SheetDOM {
     'data-sheet-part': 'viewport-layer',
   })
 
-  // Portal libs garbage-collect a container once it has no children (Headless
-  // UI deletes it, then re-hangs the disconnected node off <body>). A permanent
-  // invisible child means "empty" never happens; display:none is inline so the
-  // guarantee can't depend on a stylesheet being loaded.
+  // Some renderers delete a container once it has no children, then re-hang the
+  // disconnected node off <body>. A permanent invisible child means "empty"
+  // never happens; display:none is inline so the guarantee does not depend on a
+  // stylesheet being loaded.
   const makeSentinel = (): HTMLElement => {
     const s = createEl('span', 'sv-sheet__layer-sentinel', {
       'data-sheet-part': 'layer-sentinel',
@@ -201,7 +205,7 @@ export function buildSheetDOM(props: SheetOpenProps): SheetDOM {
   anchorLayer.append(anchorSentinel)
   viewportLayer.append(viewportSentinel)
 
-  card.append(handle, header, content, footer, overlay, anchorLayer)
+  card.append(handle, header, content, footer, overlay, anchorLayer, scrim)
   panel.append(card)
   scroll.append(closedSpacer, panel)
   toplayer.append(viewportLayer)
@@ -214,6 +218,7 @@ export function buildSheetDOM(props: SheetOpenProps): SheetDOM {
     closedSpacer,
     panel,
     card,
+    scrim,
     slots: {header, icon, closeIcon, content, footer, overlay, toplayer},
     layers: {anchored: anchorLayer, viewport: viewportLayer},
     sentinels: {anchored: anchorSentinel, viewport: viewportSentinel},

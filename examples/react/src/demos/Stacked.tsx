@@ -2,15 +2,14 @@ import {createSheets, SheetHost} from 'sheet-view/react'
 
 const sheets = createSheets()
 
-const MAX_DEPTH = 5
+// A UX cap, not a technical one: only the top two sheets ever render.
+const MAX_DEPTH = 12
 
-// `open()` is a push: each call opens a NEW sheet over the current one, and
-// nested showModal() dialogs stack natively — the top sheet holds the focus
-// trap and Escape, everything underneath is inert until it's on top again.
+// open() is a push: each call opens a new sheet over the current one.
 function openStacked(depth: number) {
   sheets.open({
     title: `Stacked sheet — depth ${depth}`,
-    size: depth % 2 === 0 ? 'md' : 'xl',
+    size: 'xl',
     content: ({close}) => (
       <div className="demo-body">
         <p>

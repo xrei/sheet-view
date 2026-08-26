@@ -24,7 +24,7 @@ sheet without touching the file. Overrides apply in both light and dark:
   `--sheet-header-padding`
 - **Motion** (defined in `base.css`): `--sheet-enter-duration`,
   `--sheet-enter-easing`, `--sheet-enter-duration-focus`, `--sheet-exit-duration`,
-  `--sheet-backdrop-duration`
+  `--sheet-exit-easing`, `--sheet-flick-easing`
 - **Sizing** (defined in `base.css`): `--sheet-width`, `--sheet-width-sm|md|lg|xl`,
   `--sheet-height`, `--sheet-height-sm|md|lg|xl`, `--sheet-inset`,
   `--sheet-inset-desktop`, `--sheet-header-gap`
@@ -100,15 +100,53 @@ Both entrances are CSS **animations**, not state-driven transitions, and the car
 the dim share one animation on one token. That is deliberate: a transition needs a
 before-change style, so it can only start on the frame *after* JS stamps
 `data-sheet-state="open"` — enough for the surface to land visibly ahead of its dim.
-Mobile slides the card up; desktop cross-fades both parts together.
+Both widths slide the card up: a viewport on mobile, and on desktop exactly far
+enough that the centred card starts with its top edge on the bottom edge of the
+screen. Nested sheets travel the same distance as the first one. The dim fades in
+beside it, and a desktop card never changes opacity — a nested one would show the
+card below straight through itself.
 
-| Token                          | Default                          | Drives                                        |
-| ------------------------------ | -------------------------------- | --------------------------------------------- |
-| `--sheet-enter-duration`       | `400ms`                          | Mobile card slide-up **and** the dim's fade-in |
-| `--sheet-enter-easing`         | `cubic-bezier(0.32, 0.72, 0, 1)` | The slide-up curve                            |
-| `--sheet-enter-duration-focus` | 75 % of the enter duration       | The shorter `focusOnOpen` rise-in             |
-| `--sheet-exit-duration`        | `250ms`                          | Desktop card exit **and** the mobile dim's fade-out |
-| `--sheet-backdrop-duration`    | `250ms`                          | Desktop entrance — card **and** dim cross-fade on this one token |
+Two things keep that motion on the compositor: the card declares
+`will-change: transform`, so its layer is not created during the first frame of
+the animation, and the theme's backdrop blur is not gated on the open state,
+which lands one frame *into* the entrance and made the compositor rebuild the
+backdrop's render surface mid-flight. If a large window on a weak GPU still drops
+frames, `--sheet-backdrop-blur: 0px` removes the most expensive thing the theme
+does.
+
+| Token                          | Default                     | Drives                                        |
+| ------------------------------ | --------------------------- | --------------------------------------------- |
+| `--sheet-enter-duration`       | `507ms`                     | Every entrance: card, dim, and the recede of the sheet below — one timeline |
+| `--sheet-enter-easing`         | `cubic-bezier(0.3, 0.54, 0.05, 0.995)` | The entrance curve, and the one a desktop exit rides back out on |
+| `--sheet-enter-duration-focus` | 75 % of the enter duration  | The shorter `focusOnOpen` rise-in             |
+| `--sheet-exit-duration`        | `517ms`                     | The exit rules still declared in CSS: the reduced-motion dim, and a nested backdrop taking over the page dim. The card and its dim leave on `closeMs` |
+| `--sheet-exit-easing`          | `cubic-bezier(0.295, 0.46, 0.06, 0.99)` | Every mobile departure: the exit, the snap-back, and those same CSS rules |
+| `--sheet-flick-easing`         | `cubic-bezier(0.32, 0.73, 0.04, 1)` | The same, for a fast release (≥1 px/ms) in either direction |
+
+Durations are the whole flight, tail included — the visible motion is over well
+before the number is up, so these read longer than the animation feels. The odd
+values are the ones that were tuned on hardware, not round numbers someone
+picked.
+
+**Every animation is two keyframes joined by one of these curves** — a start
+pose, an end pose, and a timing function that carries the entire shape between
+them. `@keyframes sv-sheet-rise` / `sv-sheet-fade` here, `element.animate()` in
+the core for anything with a distance only JS knows. The curves are
+`cubic-bezier` rather than a `linear()` stop list, and that is not a style
+choice: WebKit does not run `linear()` timing functions on the compositor, so a
+motion written that way ticks on the main thread behind your app's renders and
+visibly stutters (Blink accelerates both, so it looks fine in Chrome). Override
+a token to swap the curve; override the keyframes to change the poses.
+
+Every control point of all three curves sits inside the unit square, so none of
+them can leave `[0, 1]`. A card cannot travel past its resting line and come
+back, and a dim cannot be asked for opacity `1.02`. If you replace a token, a
+curve that reaches outside that box is what puts a bounce in.
+
+`--sheet-exit-duration` is a **duration, not a speed**: every departure takes it
+in full, whether the card has 60 px left to travel or 820. The speed is what
+varies, proportionally, and the sheet always takes the same time to come to
+rest.
 
 ```css
 :root {
@@ -116,11 +154,22 @@ Mobile slides the card up; desktop cross-fades both parts together.
 }
 ```
 
-On **mobile the exit is a scroll**, not a transition: the snap container glides back
-to its closed point, on a timeline the browser owns. Only the dim is declarable there,
-so it fades over `--sheet-exit-duration` — keep `closeMs` **≥** that, or the sheet is
-removed mid-fade. A drag-close is the exception: it takes the card off the scroller and
-runs card + dim on one `dragCloseMs` timeline.
+**Every exit is JS, on both widths**, card + dim on one duration and one curve.
+Mobile takes the card off the scroller and slides it out on a transform; desktop
+slides it off the bottom edge, back down the distance it rose through. A button
+close, a backdrop press, a drag-commit and the snap-back all run the identical
+mechanism on the identical clock. Distance decides how *fast* it goes, never how
+*long* it takes. Release momentum picks the *curve* and the destination: a fast
+release (≥1 px/ms) moves one position in its direction of travel and rides
+`--sheet-flick-easing`, which is stiffer at the start, so a flick is further
+along at the same instant. It differs from a slow release by pace, never by
+duration.
+
+The exit cannot be a CSS transition, and that is not a preference either: a
+transition never starts on a property a CSS **animation** is currently animating,
+and the entrance is exactly that. A close inside the entrance window got the half
+of the exit the entrance wasn't touching and none of the rest, so the same click
+played two different exits depending on how long the sheet had been open.
 
 The card and the dim read the same token, so they can't drift apart. From JS, use the
 core's [`enterMs`](./api#createsheetcore-options) option instead of the token — it
@@ -156,18 +205,11 @@ inherits `color-scheme` from your root and resolves its palette against it:
   device set to dark.
 - Your own `--sheet-*` overrides always win, in either scheme.
 
-::: warning Old browsers
-On browsers without CSS `light-dark()` (Safari &lt;17.5, Chrome &lt;123, Firefox &lt;120)
-the palette falls back to the OS `prefers-color-scheme`, so a light page on a dark
-device can still get a dark sheet. Set `color-scheme` explicitly, or override the
-tokens, to pin the palette.
-:::
-
 ## Styling hooks
 
 Every part of the sheet DOM carries a stable attribute you can target from your CSS:
 
-- `[data-sheet-part="root|backdrop|scroll|spacer|panel|card|handle|header|content|footer|overlay|anchor-layer|toplayer|viewport-layer|default-header|icon|title|close|close-icon"]`
+- `[data-sheet-part="root|backdrop|scroll|spacer|panel|card|scrim|handle|header|content|footer|overlay|anchor-layer|toplayer|viewport-layer|default-header|icon|title|close|close-icon"]`
 - `[data-sheet-state="opening|open|closing"]` on the root
 - `[data-sheet-size="sm|md|lg|xl"]` on the card
 - `[data-sheet-focus-open]` on the root — present when opened with `focusOnOpen`

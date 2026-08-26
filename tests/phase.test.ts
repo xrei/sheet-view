@@ -2,7 +2,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
 import {createSheetCore} from '../src/core/sheetCore'
 import type {SheetCore, SheetPhase} from '../src/core/types'
-import {mockMatchMedia, stubOffsetTop} from './helpers'
+import {mockMatchMedia} from './helpers'
 
 const el = <T extends HTMLElement>(sel: string): T =>
   document.querySelector(sel) as T
@@ -20,7 +20,7 @@ describe('motion phase', () => {
       core = createSheetCore()
     })
 
-    it("settles synchronously — there is no mobile entrance to wait out", () => {
+    it('settles synchronously on open', () => {
       const handle = core.open({title: 'A'})
       expect(handle.phase()).toBe('settled')
       expect(el('dialog.sv-sheet').dataset['sheetSettled']).toBe('')
@@ -31,7 +31,7 @@ describe('motion phase', () => {
     let mm: ReturnType<typeof mockMatchMedia>
 
     beforeEach(() => {
-      // matchMedia must be mocked BEFORE createSheetCore — makeIsMobile captures
+      // matchMedia must be mocked before createSheetCore: makeIsMobile captures
       // the MediaQueryList at construction.
       mm = mockMatchMedia({mobile: true})
       core = createSheetCore()
@@ -44,21 +44,29 @@ describe('motion phase', () => {
     it("opens 'entering' and reaches 'settled' after openSettleMs", () => {
       vi.useFakeTimers()
       const handle = core.open({title: 'A'})
-      stubOffsetTop(el('[data-sheet-part="panel"]'), 800)
       expect(handle.phase()).toBe('entering')
 
-      vi.advanceTimersByTime(600) // the open rAF chain + the 400ms settle
+      vi.advanceTimersByTime(700) // the open rAF plus the 507ms settle
       expect(handle.phase()).toBe('settled')
     })
 
-    it("settles immediately under reduced motion", () => {
+    it('settles immediately under reduced motion', () => {
       vi.useFakeTimers()
       mm.setReducedMotion(true)
       const handle = core.open({title: 'A'})
-      stubOffsetTop(el('[data-sheet-part="panel"]'), 800)
 
       vi.advanceTimersByTime(20) // just the rAF, not openSettleMs
       expect(handle.phase()).toBe('settled')
+    })
+
+    it("'closing' is terminal: the settle timer outliving the close cannot lift it", () => {
+      vi.useFakeTimers()
+      const handle = core.open({title: 'A'})
+      vi.advanceTimersByTime(20) // the rAF that schedules the settle
+      handle.close()
+
+      vi.advanceTimersByTime(600)
+      expect(handle.phase()).toBe('closing')
     })
   })
 
@@ -77,23 +85,11 @@ describe('motion phase', () => {
       expect(handle.phase()).toBe('closing')
       expect(seen).toEqual(['closing'])
 
-      // Idempotent: a second close is a no-op, so no second notification.
       handle.close()
       expect(seen).toEqual(['closing'])
     })
 
-    it("never leaves 'closing' — a late settle must not say it is safe to measure", () => {
-      vi.useFakeTimers()
-      const handle = core.open({title: 'A'})
-      handle.close()
-
-      // A breakpoint crossing mid-exit calls markSettled; it must not win.
-      window.dispatchEvent(new Event('resize'))
-      vi.advanceTimersByTime(100)
-      expect(handle.phase()).toBe('closing')
-    })
-
-    it('unsubscribes, and clears listeners on teardown', () => {
+    it('onPhase returns an unsubscribe that stops notifications', () => {
       vi.useFakeTimers()
       const listener = vi.fn()
       const handle = core.open({title: 'A'})
@@ -101,12 +97,11 @@ describe('motion phase', () => {
       off()
 
       handle.close()
+      vi.advanceTimersByTime(600)
       expect(listener).not.toHaveBeenCalled()
-      vi.advanceTimersByTime(320)
-      expect(core.getSnapshot()).toHaveLength(0)
     })
 
-    it('a throwing listener cannot break the close path (or the page stays locked)', () => {
+    it('a throwing phase listener does not stop teardown or the scroll-lock release', () => {
       vi.useFakeTimers()
       const error = vi.spyOn(console, 'error').mockImplementation(() => {})
       const handle = core.open({title: 'A'})
@@ -115,7 +110,7 @@ describe('motion phase', () => {
       })
 
       expect(() => handle.close()).not.toThrow()
-      vi.advanceTimersByTime(320)
+      vi.advanceTimersByTime(600)
       expect(core.getSnapshot()).toHaveLength(0)
       expect(
         document.documentElement.hasAttribute('data-sheet-scroll-lock'),

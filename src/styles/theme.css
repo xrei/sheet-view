@@ -1,24 +1,16 @@
-/* sheet-view — theme.css (OPTIONAL)
+/* sheet-view, theme.css (OPTIONAL)
  *
- * The default skin: surface, text, radius, shadow, handle, close button,
- * dividers, and the backdrop dim. Every value reads a `--sheet-*` custom
- * property with a sensible inline fallback, so:
- *   - importing this file gives a good-looking default out of the box, and
- *   - overriding any `--sheet-*` token (on :root, [data-sheet-part='root'], or
- *     any ancestor) re-themes without touching this file — and the override now
- *     wins in BOTH light and dark (see the palette note below).
+ * The default skin. Every value reads a `--sheet-*` token with an inline
+ * fallback, so importing this gives a good default and overriding any token
+ * re-themes it, in BOTH light and dark.
  *
- * Light/dark follows the HOST PAGE, not the OS. The sheet inherits `color-scheme`
- * from your root, and the default palette resolves against it via `light-dark()`.
- * Declare `color-scheme: dark` (or `light dark`) on your :root to get a dark sheet;
- * a page that declares nothing stays light. On browsers without `light-dark()`
- * (Safari <17.5, Chrome <123, Firefox <120) the palette falls back to the OS
- * `prefers-color-scheme` instead — there a light page on a dark OS still darkens.
+ * Light/dark follows the HOST PAGE, not the OS: the sheet inherits
+ * `color-scheme` from your root and the palette resolves through `light-dark()`.
+ * A page that declares nothing stays light.
  *
- * Wrapped in `@layer sheet-view` so your own (unlayered) styles always win —
- * no specificity wars. Structure AND motion live in base.css (required), so a
- * sheet without this file still slides in correctly — just unskinned. Skip this
- * file entirely to go fully unstyled and bring your own look.
+ * Wrapped in `@layer sheet-view` so your own unlayered styles always win.
+ * Structure and motion live in base.css, so a sheet without this file still
+ * slides in correctly, just unskinned.
  *
  * Public tokens (override freely; the set only grows across versions):
  *   colours  --sheet-surface --sheet-text --sheet-handle --sheet-border
@@ -30,69 +22,52 @@
  *            --sheet-header-padding
  * The motion tokens (--sheet-enter-duration, …) and the sizing tokens
  * (--sheet-width*, --sheet-height*, --sheet-inset*, --sheet-header-gap) are public
- * too, but they belong to base.css — see its Motion and Geometry sections. The
+ * too, but they belong to base.css, see its Motion and Geometry sections. The
  * `--_sheet-*` (underscore) tokens are PRIVATE internals, not part of the public
  * contract; don't set them.
  */
 
 @layer sheet-view {
-  /* ── Default palette ────────────────────────────────────────────────────────
-     Public colour tokens are left UNSET here; each is read as
+  /* Default palette. Public colour tokens are left UNSET here; each is read as
      `var(--sheet-x, var(--_sheet-x))`, so a consumer override (public token, set)
      beats the private per-scheme default in BOTH schemes. The private defaults
-     follow the host's color-scheme via light-dark(), with the @media OS fallback
-     below for browsers that lack it. */
+     resolve against the INHERITED (host) color-scheme through light-dark(). No
+     `prefers-color-scheme` fallback: that follows the OS, which darkens a light
+     host page on a dark machine. */
   .sv-sheet {
-    color-scheme: inherit; /* mechanically a no-op — color-scheme already inherits;
-                              explicit only to document the reliance on the host scheme */
+    color-scheme: inherit; /* a no-op, color-scheme already inherits; explicit to
+                              document the reliance on the host scheme */
     color: var(--sheet-text, var(--_sheet-text));
 
-    --_sheet-surface: #ffffff;
-    --_sheet-text: #1a1a1a;
-    --_sheet-handle: rgba(0, 0, 0, 0.2);
-    --_sheet-border: rgba(0, 0, 0, 0.15);
-    --_sheet-border-subtle: rgba(0, 0, 0, 0.1);
-    --_sheet-hover: rgba(0, 0, 0, 0.05);
-    --_sheet-backdrop: rgba(0, 0, 0, 0.45);
-  }
-
-  /* Old browsers (no light-dark()): follow the OS preference. Sets the PRIVATE
-     defaults only — a consumer's public --sheet-* override still wins. */
-  @media (prefers-color-scheme: dark) {
-    .sv-sheet {
-      --_sheet-surface: #1c1c1e; /* iOS systemGray6 dark */
-      --_sheet-text: #f2f2f7;
-      --_sheet-handle: rgba(255, 255, 255, 0.25);
-      --_sheet-border: rgba(255, 255, 255, 0.2);
-      --_sheet-border-subtle: rgba(255, 255, 255, 0.12);
-      --_sheet-hover: rgba(255, 255, 255, 0.08);
-      --_sheet-backdrop: rgba(0, 0, 0, 0.6);
-    }
-  }
-
-  /* Modern browsers: follow the HOST's declared color-scheme. light-dark()
-     resolves against the inherited scheme; this block is later in source than the
-     @media one above, so it wins where supported and is inert where not. */
-  @supports (color: light-dark(#000, #fff)) {
-    .sv-sheet {
-      --_sheet-surface: light-dark(#ffffff, #1c1c1e);
-      --_sheet-text: light-dark(#1a1a1a, #f2f2f7);
-      --_sheet-handle: light-dark(rgba(0, 0, 0, 0.2), rgba(255, 255, 255, 0.25));
-      --_sheet-border: light-dark(rgba(0, 0, 0, 0.15), rgba(255, 255, 255, 0.2));
-      --_sheet-border-subtle: light-dark(rgba(0, 0, 0, 0.1), rgba(255, 255, 255, 0.12));
-      --_sheet-hover: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.08));
-      --_sheet-backdrop: light-dark(rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.6));
-    }
+    --_sheet-surface: light-dark(#ffffff, #1c1c1e);
+    --_sheet-text: light-dark(#1a1a1a, #f2f2f7);
+    --_sheet-handle: light-dark(rgba(0, 0, 0, 0.2), rgba(255, 255, 255, 0.25));
+    --_sheet-border: light-dark(rgba(0, 0, 0, 0.15), rgba(255, 255, 255, 0.2));
+    --_sheet-border-subtle: light-dark(rgba(0, 0, 0, 0.1), rgba(255, 255, 255, 0.12));
+    --_sheet-hover: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.08));
+    /* One colour for every dim: the page backdrop and the per-card scrims, each
+       of which shows a fraction of it set by the core per stack role, so one
+       value rescales the whole dim system and the proportions hold in both
+       schemes. */
+    --_sheet-backdrop: light-dark(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.48));
   }
 
   .sv-sheet__backdrop {
     background: var(--sheet-backdrop, var(--_sheet-backdrop));
   }
+  /* The card-bounded dim reads the same token, so an override recolours every
+     dim at once. base.css owns its geometry and opacity. */
+  .sv-sheet__scrim {
+    background: var(--sheet-backdrop, var(--_sheet-backdrop));
+  }
 
+  /* No default mobile shadow: the card meets the viewport edges, so the strip of
+     a covered card above it is a clean hard step. The token stays for consumers
+     who want one anyway. */
   .sv-sheet__card {
     background: var(--sheet-surface, var(--_sheet-surface));
     border-radius: var(--sheet-radius, 20px) var(--sheet-radius, 20px) 0 0;
-    box-shadow: var(--sheet-shadow-mobile, 0 -8px 24px rgba(0, 0, 0, 0.35));
+    box-shadow: var(--sheet-shadow-mobile, none);
   }
 
   .sv-sheet__handle {
@@ -126,9 +101,9 @@
       background 0.15s ease,
       opacity 0.15s ease;
   }
-  /* Gate hover behind hover-capable pointers. On touch (iOS) :hover is applied on
-     tap and sticks until another element is tapped — so after a swipe-close the
-     button would stay highlighted. hover:none skips the rule entirely there. */
+  /* Gated behind hover-capable pointers: on touch, :hover applies on tap and
+     sticks until another element is tapped, leaving the button highlighted after
+     a swipe-close. */
   @media (hover: hover) {
     .sv-sheet__close:hover {
       background: var(--sheet-hover, var(--_sheet-hover));
@@ -142,14 +117,12 @@
     border-top: 1px solid var(--sheet-border-subtle, var(--_sheet-border-subtle));
   }
 
-  /* iOS auto-zooms on focus for fields under 16px; keeping them ≥16px removes the
-     reason for the zoom — the accessible alternative to locking maximum-scale. */
+  /* WebKit auto-zooms on focus for fields under 16px; keeping them at 16px is
+     the accessible alternative to locking maximum-scale. */
   .sv-sheet__content :where(input, select, textarea) {
     font-size: max(1em, 16px);
   }
 
-  /* The close button's hover/disabled fade is the one transition that IS skin —
-     it animates themed properties, so it lives with them. */
   @media (prefers-reduced-motion: reduce) {
     .sv-sheet__close {
       transition: none;
@@ -157,17 +130,30 @@
   }
 
   @media (min-width: 768px) {
-    /* Blur only while open — computing backdrop-filter at opacity:0 during the
-       fade wastes GPU on integrated graphics with a large window. */
-    .sv-sheet__backdrop {
-      backdrop-filter: none;
-    }
-    .sv-sheet[data-sheet-state='open'] .sv-sheet__backdrop {
+    /* Blur only the BOTTOM sheet's backdrop, the one that reads through to the
+       page. Backdrops higher in a stack sit over cards, which should dim but not
+       smear, and each filter is a serialised GPU pass over everything beneath
+       it. `:not([data-sheet-nested])` selects the bottom sheet at any depth, so
+       at most one filter is computed.
+
+       No state gate: the state lands one frame INTO the entrance, so gating the
+       filter on it switches the filter on mid-animation and the compositor
+       rebuilds its render surface while the card is moving. The surface must
+       exist from the first frame.
+
+       This filter is the most expensive thing the theme does. On a weak GPU with
+       a large window, set --sheet-backdrop-blur: 0px. */
+    .sv-sheet:not([data-sheet-nested]) .sv-sheet__backdrop {
       backdrop-filter: blur(var(--sheet-backdrop-blur, 4px));
     }
     .sv-sheet__card {
       border-radius: var(--sheet-radius-desktop, 16px);
       box-shadow: var(--sheet-shadow, 0 10px 40px rgba(0, 0, 0, 0.2));
+    }
+    /* Cards behind the top one cast no shadow, so shadows can't pile up in the
+       strip where a covered card peeks out. */
+    .sv-sheet[data-sheet-stack] .sv-sheet__card {
+      box-shadow: none;
     }
     .sv-sheet__default-header {
       padding: 16px 20px;

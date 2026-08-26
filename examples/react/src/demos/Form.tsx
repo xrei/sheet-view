@@ -3,8 +3,9 @@ import {createSheets, SheetHost} from 'sheet-view/react'
 
 const sheets = createSheets()
 
-// A real <form> with autocomplete attributes, so password managers offer autofill.
-function SignInForm({close}: {close: () => void}) {
+// The select and date popups are rendered by the browser, not by the page, so
+// the modal top layer does not apply to them: no portalling, no positioning code.
+function BookingForm({close}: {close: () => void}) {
   const submit = (e: FormEvent): void => {
     e.preventDefault()
     close()
@@ -19,8 +20,21 @@ function SignInForm({close}: {close: () => void}) {
         Password
         <input name="password" type="password" autoComplete="current-password" required />
       </label>
+      <label className="demo-label">
+        Country
+        <select className="demo-input" defaultValue="th">
+          <option value="th">Thailand</option>
+          <option value="vn">Vietnam</option>
+          <option value="id">Indonesia</option>
+          <option value="ph">Philippines</option>
+        </select>
+      </label>
+      <label className="demo-label">
+        Departure
+        <input className="demo-input" type="date" />
+      </label>
       <button className="demo-btn" type="submit">
-        Sign in
+        Book
       </button>
     </form>
   )
@@ -33,14 +47,14 @@ export function Demo() {
         className="demo-btn"
         onClick={() =>
           sheets.open({
-            title: 'Sign in',
+            title: 'Book a trip',
             size: 'md',
             focusOnOpen: true,
-            content: ({close}) => <SignInForm close={close} />,
+            content: ({close}) => <BookingForm close={close} />,
           })
         }
       >
-        Open a sign-in sheet
+        Open a booking sheet
       </button>
       <SheetHost instance={sheets} />
     </>

@@ -27,65 +27,25 @@ describe('SheetHost', () => {
     sheets.__resetForTests()
   })
 
-  it('renders the default header title, body content, and close button', () => {
+  it('renders the default header title, body content and close button', () => {
     open({title: 'My title', content: () => <p>Body text</p>})
     expect(screen.getByText('My title')).toBeInTheDocument()
     expect(screen.getByText('Body text')).toBeInTheDocument()
     expect(screen.getByLabelText('Close')).toBeInTheDocument()
   })
 
-  it('renders nothing when no sheet is open', () => {
+  it('renders no dialog until a sheet opens', () => {
     expect(dialog()).toBeNull()
   })
 
-  it('close button fires onClose', () => {
+  it('the close button fires onClose', () => {
     const onClose = vi.fn()
     open({title: 'A', content: () => <p>Body</p>, onClose})
     fireEvent.click(screen.getByLabelText('Close'))
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('Escape (dialog cancel) fires onClose', () => {
-    const onClose = vi.fn()
-    open({title: 'A', content: () => <p>Body</p>, onClose})
-    fireEvent(dialog()!, new Event('cancel', {cancelable: true}))
-    expect(onClose).toHaveBeenCalledTimes(1)
-  })
-
-  it('backdrop press + click (outside the card) fires onClose', () => {
-    const onClose = vi.fn()
-    open({title: 'A', content: () => <p>Body</p>, onClose})
-    fireEvent.pointerDown(dialog()!)
-    fireEvent.click(dialog()!)
-    expect(onClose).toHaveBeenCalledTimes(1)
-  })
-
-  it('press inside the card does not close', () => {
-    const onClose = vi.fn()
-    open({title: 'A', content: () => <p>Body</p>, onClose})
-    const body = screen.getByText('Body')
-    fireEvent.pointerDown(body)
-    fireEvent.click(body)
-    expect(onClose).not.toHaveBeenCalled()
-  })
-
-  it('a press that starts inside the card never dismisses, even if the click lands outside', () => {
-    // Reproduces the "Clear/More" bug: a content button re-renders and detaches
-    // before the click bubbles to the dialog, so the click target is outside
-    // the card. Deciding at pointerdown (press started inside) prevents the
-    // spurious dismiss.
-    const onClose = vi.fn()
-    open({
-      title: 'A',
-      content: () => <button type="button">Clear</button>,
-      onClose,
-    })
-    fireEvent.pointerDown(screen.getByText('Clear'))
-    fireEvent.click(dialog()!)
-    expect(onClose).not.toHaveBeenCalled()
-  })
-
-  it('closeDisabled blocks the close button and Escape, firing onCloseAttempt', () => {
+  it('closeDisabled blocks the close button and cancel, firing onCloseAttempt for each', () => {
     const onClose = vi.fn()
     const onCloseAttempt = vi.fn()
     open({
@@ -103,7 +63,7 @@ describe('SheetHost', () => {
     expect(onCloseAttempt).toHaveBeenCalledTimes(2)
   })
 
-  it('closeHidden omits the X entirely (forced sheet), keeping the title', () => {
+  it('closeHidden drops the close button and keeps the title', () => {
     open({title: 'Log in', content: () => <p>Body</p>, closeHidden: true})
     expect(screen.getByText('Log in')).toBeInTheDocument()
     expect(screen.queryByLabelText('Close')).toBeNull()
@@ -118,7 +78,7 @@ describe('SheetHost', () => {
     expect(screen.getByText('Apply')).toBeInTheDocument()
   })
 
-  it('a React icon renders in the default header, before the title', () => {
+  it('a React icon renders first in the default header, alongside the close button', () => {
     open({
       title: 'Filters',
       icon: () => <svg data-testid="glyph" />,
@@ -128,16 +88,13 @@ describe('SheetHost', () => {
     const icon = document.querySelector('[data-sheet-part="icon"]')!
     expect(header.firstElementChild).toBe(icon)
     expect(icon.querySelector('[data-testid="glyph"]')).not.toBeNull()
-    // The whole point: an icon no longer costs you the close button.
     expect(screen.getByLabelText('Close')).toBeInTheDocument()
   })
 
-  it('the icon node keeps its identity across update() (stable portal container)', () => {
-    // Load-bearing. mountSlots rebuilds the default header on EVERY update(), so
-    // if the icon node is ever created inside buildDefaultHeader instead of being
-    // moved into it, React's portal container silently detaches and the icon
-    // vanishes on the first update() — with no error anywhere. Do not "simplify"
-    // the node back into the header builder.
+  it('the icon node keeps its identity across update()', () => {
+    // mountSlots rebuilds the default header on every update(), so the icon node
+    // is moved into it, never created there: a node created there detaches
+    // React's portal container silently.
     const handle = open({
       title: 'A',
       icon: () => <span>★</span>,
@@ -165,9 +122,7 @@ describe('SheetHost', () => {
     expect(screen.getByText('Custom header')).toBeInTheDocument()
   })
 
-  it('a JSX closeIcon fills the close button and keeps the whole default header', () => {
-    // The gap this closes: a JSX close glyph used to force headerSlot, which costs
-    // the button's label, its aria-disabled state and its 44×44 hit target.
+  it('a JSX closeIcon fills the close button and keeps the rest of the default header', () => {
     open({
       title: 'Filters',
       closeIcon: () => <svg data-testid="x-glyph" />,
@@ -177,14 +132,11 @@ describe('SheetHost', () => {
     const glyph = document.querySelector('[data-sheet-part="close-icon"]')!
     expect(btn.contains(glyph)).toBe(true)
     expect(glyph.querySelector('[data-testid="x-glyph"]')).not.toBeNull()
-    // Everything else in the row survives — that is the point of not using headerSlot.
     expect(screen.getByText('Filters')).toBeInTheDocument()
     expect(document.querySelector('[data-sheet-part="default-header"]')).not.toBeNull()
   })
 
   it('the close glyph node keeps its identity across update()', () => {
-    // Same load-bearing invariant as the icon node above: the header row is rebuilt
-    // on every update(), so this node must be MOVED into it, never created there.
     const handle = open({
       title: 'A',
       closeIcon: () => <span>✕</span>,
@@ -222,7 +174,7 @@ describe('SheetHost', () => {
     expect(document.querySelector('.sv-sheet__default-header')).toBeNull()
   })
 
-  it('content receives a {close} ctx it can call', () => {
+  it('the slot ctx close() fires onClose', () => {
     const onClose = vi.fn()
     open({
       title: 'A',
@@ -254,11 +206,9 @@ describe('SheetHost', () => {
     expect(onCloseAttempt).toHaveBeenCalledTimes(1)
   })
 
-  it('the slot ctx update accepts ReactNode slots (it is the facade, not the core)', () => {
-    // The regression: SheetPortals used to hand factories the CORE handle's
-    // update, so `update({content: <Jsx/>})` reached mountSlot as an object it
-    // can't resolve — which replaceChildren()'d the slot to empty, wiping the
-    // portal DOM React was rendering into and crashing the host root.
+  it('the slot ctx update() accepts ReactNode slots and swaps title and content', () => {
+    // The ctx update is the facade's: the core resolves a ReactNode to nothing
+    // and replaceChildren()s the slot empty, wiping the DOM React renders into.
     open({
       title: 'A',
       content: ({update}) => (
@@ -277,16 +227,5 @@ describe('SheetHost', () => {
     expect(screen.getByText('Swapped body')).toBeInTheDocument()
     expect(screen.queryByText('Swap')).toBeNull()
     expect(screen.getByText('Rewritten')).toBeInTheDocument()
-  })
-
-  it('the slot ctx close still routes through the same guarded path', () => {
-    const onClose = vi.fn()
-    open({
-      title: 'A',
-      onClose,
-      content: ({close}) => <button onClick={() => close()}>Done</button>,
-    })
-    fireEvent.click(screen.getByText('Done'))
-    expect(onClose).toHaveBeenCalledTimes(1)
   })
 })

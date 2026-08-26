@@ -10,7 +10,7 @@ import type {SheetLayers, SheetPhase, SheetSlots} from '../core/types'
  */
 export interface SheetLayoutValue {
   /**
-   * The positioning root for `layers.anchored` children — `position: relative`
+   * The positioning root for `layers.anchored` children, `position: relative`
    * and never clipping. This is the offsetParent your `strategy: 'absolute'`
    * coordinates resolve against.
    */
@@ -19,11 +19,10 @@ export interface SheetLayoutValue {
   content: HTMLElement
   /**
    * The drag scroller, and the outermost thing that clips. Pass it as the
-   * collision `boundary` of whatever positions your panel — the viewport is
-   * the wrong boundary for a card-anchored menu.
+   * collision `boundary` of whatever positions your panel: the viewport is the
+   * wrong boundary for a card-anchored menu.
    */
   scroll: HTMLElement
-  /** Slot nodes of this sheet. */
   slots: SheetSlots
   /** Popover mount nodes of this sheet. */
   layers: SheetLayers
