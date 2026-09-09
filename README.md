@@ -79,6 +79,57 @@ sheets.open({
 A slot takes a `Node`, a `string`, or a `(ctx) => Node | string` function. Run
 `pnpm docs:dev` for live demos of the core and the React adapter.
 
+## No bundler (plain HTML, CDN)
+
+`dist/sheet-view.min.js` is the core in one self-contained file: no imports to
+resolve, nothing to configure. Point a `<script type="module">` at it, from a
+CDN or straight out of `node_modules/`.
+
+```html
+<!-- REQUIRED: structure and motion -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sheet-view/dist/base.css" />
+<!-- OPTIONAL: the default skin -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sheet-view/dist/theme.css" />
+
+<script type="module">
+  import {sheetCore} from 'https://cdn.jsdelivr.net/npm/sheet-view/dist/sheet-view.min.js'
+
+  sheetCore.open({title: 'Hello', size: 'sm', content: () => 'A plain-DOM sheet body.'})
+</script>
+```
+
+Serving your own copy is the same file by another path:
+
+```html
+<script type="module">
+  import {sheetCore} from './node_modules/sheet-view/dist/sheet-view.min.js'
+</script>
+```
+
+Pin a version for anything real: `sheet-view@<version>/dist/sheet-view.min.js`.
+`dist/sheet-view.js` is the same build unminified.
+
+Load the library one way only. The standalone file next to a bundled import is
+two copies with two independent sheet stacks.
+
+The standalone carries the core alone: `sheetCore` and `createSheetCore`.
+`dist/index.js` and `dist/testing.js` also load unbundled, in Node, Deno, Bun
+and edge runtimes as well as a browser. `sheet-view/react` is the exception. It
+imports bare `react`, `react-dom` and `react/jsx-runtime`, which over a CDN
+needs an import map:
+
+```html
+<script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@19",
+      "react-dom": "https://esm.sh/react-dom@19",
+      "react/jsx-runtime": "https://esm.sh/react@19/jsx-runtime"
+    }
+  }
+</script>
+```
+
 ## CSS: required base + optional theme
 
 Positioning and the scroll-snap container need real CSS to work, so the styles

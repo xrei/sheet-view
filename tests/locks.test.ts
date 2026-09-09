@@ -1,15 +1,17 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
+import {zoomLock} from '../src/core/locks'
 import {createSheetCore} from '../src/core/sheetCore'
 import type {SheetCore} from '../src/core/types'
 import {stubLayout} from './helpers'
 
-// scrollLock and zoomLock are module-global singletons, so every core is reset in
-// afterEach (which runs on assertion failure too) to keep a ref-count from leaking
-// into the next test.
+// Both locks count their holders in the DOM, which means a leaked count
+// outlives the module. Every core is reset in afterEach (which runs on
+// assertion failure too) to keep one from reaching the next test.
 describe('zoomLock (viewport meta)', () => {
   let meta: HTMLMetaElement
   let core: SheetCore | undefined
+  let other: SheetCore | undefined
 
   beforeEach(() => {
     meta = document.createElement('meta')
@@ -20,7 +22,8 @@ describe('zoomLock (viewport meta)', () => {
 
   afterEach(() => {
     core?.__resetForTests()
-    core = undefined
+    other?.__resetForTests()
+    core = other = undefined
     meta.remove()
   })
 
@@ -37,6 +40,66 @@ describe('zoomLock (viewport meta)', () => {
 
     core.__resetForTests()
     expect(meta.getAttribute('content')).toBe('width=device-width')
+  })
+
+  it('nests independent cores through the holder count on the meta', () => {
+    core = createSheetCore({zoomLock: true})
+    other = createSheetCore({zoomLock: true})
+    core.open({title: 'A'})
+    // The second core must not save the first core's edit as the original.
+    other.open({title: 'B'})
+    expect(meta.getAttribute('data-sheet-zoom-lock')).toBe('2')
+    expect(meta.getAttribute('content')).toBe('width=device-width, maximum-scale=1')
+
+    other.__resetForTests()
+    expect(meta.getAttribute('content')).toBe('width=device-width, maximum-scale=1')
+
+    core.__resetForTests()
+    expect(meta.hasAttribute('data-sheet-zoom-lock')).toBe(false)
+    expect(meta.getAttribute('content')).toBe('width=device-width')
+  })
+
+  // With the saved content in a module closure the second copy saves the first
+  // copy's edit as the original, then restores it last and strands
+  // maximum-scale=1 on the page. A distinct module id makes vite instantiate
+  // the module twice, matching a standalone CDN build next to a bundled import
+  // on a real page.
+  it('two copies of the module nest instead of clobbering', async () => {
+    const a = await import('../src/core/locks')
+    // @ts-expect-error: same file, distinct module id, which loads it twice.
+    const b = await import('../src/core/locks?copy')
+    expect(a.zoomLock).not.toBe(b.zoomLock)
+
+    a.zoomLock.acquire()
+    b.zoomLock.acquire()
+    expect(meta.getAttribute('content')).toBe('width=device-width, maximum-scale=1')
+
+    a.zoomLock.release()
+    b.zoomLock.release()
+    expect(meta.getAttribute('content')).toBe('width=device-width')
+  })
+
+  it('is a no-op with no viewport meta, and survives an unbalanced release', () => {
+    meta.remove()
+    expect(() => {
+      zoomLock.acquire()
+      zoomLock.release()
+    }).not.toThrow()
+
+    document.head.appendChild(meta)
+    // A release with no holder must not strip the page's own content.
+    zoomLock.release()
+    expect(meta.getAttribute('content')).toBe('width=device-width')
+  })
+
+  it('gives back no content attribute when the meta had none', () => {
+    meta.removeAttribute('content')
+    core = createSheetCore({zoomLock: true})
+    core.open({title: 'A'})
+    expect(meta.getAttribute('content')).toBe('maximum-scale=1')
+
+    core.__resetForTests()
+    expect(meta.hasAttribute('content')).toBe(false)
   })
 })
 

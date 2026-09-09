@@ -1,6 +1,6 @@
 import {useContext, useSyncExternalStore} from 'react'
 
-import {DEV, devWarn} from '../core/dev'
+import {devWarn} from '../core/dev'
 import type {SheetLayerName} from '../core/types'
 import {SheetLayoutContext} from './SheetLayoutContext'
 import {sheets as defaultSheets} from './sheets'
@@ -53,7 +53,7 @@ export function useSheetPortalTarget(
   if (layout) return layout.layers[layer]
   if (topmostTarget) return topmostTarget
 
-  if (DEV && layer === 'anchored') {
+  if (layer === 'anchored') {
     // A viewport overlay legitimately outlives every sheet; an anchored panel
     // with nothing to anchor to is almost always a bug.
     devWarn(

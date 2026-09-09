@@ -10,6 +10,41 @@ ships at `sheet-view/react`.
 npm i sheet-view
 ```
 
+## No bundler (plain HTML, CDN)
+
+Nothing in `dist/` reads a host global. Every entry point loads as-is: from a
+`<script type="module">`, from a CDN, and in bare Node, Deno, Bun and edge
+runtimes.
+
+`dist/sheet-view.min.js` is the core in one self-contained file, with nothing
+left to resolve:
+
+```html
+<!-- REQUIRED: structure and motion -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sheet-view/dist/base.css" />
+<!-- OPTIONAL: the default skin -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sheet-view/dist/theme.css" />
+
+<script type="module">
+  import {sheetCore} from 'https://cdn.jsdelivr.net/npm/sheet-view/dist/sheet-view.min.js'
+
+  sheetCore.open({title: 'Hello', size: 'sm', content: () => 'A plain-DOM sheet body.'})
+</script>
+```
+
+Swap the URL for `./node_modules/sheet-view/dist/sheet-view.min.js` to serve your
+own copy, and pin a version (`sheet-view@<version>`) for anything real.
+`dist/sheet-view.js` is the same build unminified.
+
+The standalone carries the core alone. `sheet-view/react` imports bare `react`,
+`react-dom` and `react/jsx-runtime`, which over a CDN needs an
+[import map](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/script/type/importmap).
+
+::: warning Load it one way only
+The locks nest across copies by design, but two copies still mean two
+independent sheet stacks. Pick the standalone file or the bundled import.
+:::
+
 ## Styles
 
 Positioning and the scroll-snap container need real CSS to work, so the styles come

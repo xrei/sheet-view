@@ -3,23 +3,6 @@ export interface RefCountedLock {
   release: () => void
 }
 
-export function refCounted(
-  onFirst: () => void,
-  onLast: () => void,
-): RefCountedLock {
-  let count = 0
-  return {
-    acquire(): void {
-      if (count === 0) onFirst()
-      count++
-    },
-    release(): void {
-      count = Math.max(0, count - 1)
-      if (count === 0) onLast()
-    },
-  }
-}
-
 /* The lock is DOM attributes + base.css rules, NEVER an inline `overflow` write:
  * a third-party scroll lock saves and restores that same register, and two
  * owners of one register cannot interleave without one clobbering the other.
@@ -34,14 +17,14 @@ const PIN_ATTR = 'data-sheet-scroll-pin'
 const PR_VAR = '--_sheet-lock-pr'
 const TOP_VAR = '--_sheet-lock-top'
 
-function holders(html: HTMLElement): number {
-  return parseInt(html.getAttribute(LOCK_ATTR) ?? '', 10) || 0
+function holders(el: Element, attr: string): number {
+  return parseInt(el.getAttribute(attr) ?? '', 10) || 0
 }
 
 export const scrollLock: RefCountedLock = {
   acquire(): void {
     const html = document.documentElement
-    const count = holders(html)
+    const count = holders(html, LOCK_ATTR)
     if (count > 0) {
       html.setAttribute(LOCK_ATTR, String(count + 1))
       return
@@ -74,7 +57,7 @@ export const scrollLock: RefCountedLock = {
   },
   release(): void {
     const html = document.documentElement
-    const count = holders(html)
+    const count = holders(html, LOCK_ATTR)
     if (count > 1) {
       html.setAttribute(LOCK_ATTR, String(count - 1))
       return
@@ -92,23 +75,47 @@ export const scrollLock: RefCountedLock = {
   },
 }
 
-// Pin maximum-scale on the viewport meta so WebKit cannot auto-zoom on focus.
-// user-scalable=no is omitted: it fully blocks pinch-zoom, a WCAG 1.4.4 failure.
-let savedViewport: string | null = null
-export const zoomLock: RefCountedLock = refCounted(
-  () => {
+/* Pin maximum-scale on the viewport meta so WebKit cannot auto-zoom on focus.
+ * user-scalable=no is omitted: it fully blocks pinch-zoom, a WCAG 1.4.4 failure.
+ *
+ * Same channel as `scrollLock`: the holder count and the content to restore
+ * live on the meta itself. Two bundled copies then nest, instead of the second
+ * one saving the first one's edit as the original.
+ */
+const ZOOM_ATTR = 'data-sheet-zoom-lock'
+const ZOOM_SAVED_ATTR = 'data-sheet-zoom-content'
+
+export const zoomLock: RefCountedLock = {
+  acquire(): void {
     const meta = document.querySelector('meta[name="viewport"]')
     if (!meta) return
-    savedViewport = meta.getAttribute('content')
-    const base = savedViewport ?? ''
+    const count = holders(meta, ZOOM_ATTR)
+    if (count > 0) {
+      meta.setAttribute(ZOOM_ATTR, String(count + 1))
+      return
+    }
+    const saved = meta.getAttribute('content') ?? ''
+    meta.setAttribute(ZOOM_SAVED_ATTR, saved)
+    meta.setAttribute(ZOOM_ATTR, '1')
     meta.setAttribute(
       'content',
-      base ? `${base}, maximum-scale=1` : 'maximum-scale=1',
+      saved ? `${saved}, maximum-scale=1` : 'maximum-scale=1',
     )
   },
-  () => {
-    if (savedViewport === null) return
+  release(): void {
     const meta = document.querySelector('meta[name="viewport"]')
-    if (meta) meta.setAttribute('content', savedViewport)
-    savedViewport = null
-  })
+    if (!meta) return
+    const count = holders(meta, ZOOM_ATTR)
+    if (count === 0) return
+    if (count > 1) {
+      meta.setAttribute(ZOOM_ATTR, String(count - 1))
+      return
+    }
+    const saved = meta.getAttribute(ZOOM_SAVED_ATTR)
+    meta.removeAttribute(ZOOM_ATTR)
+    meta.removeAttribute(ZOOM_SAVED_ATTR)
+    // A meta that had no `content` gets none back, rather than keeping ours.
+    if (saved) meta.setAttribute('content', saved)
+    else meta.removeAttribute('content')
+  },
+}

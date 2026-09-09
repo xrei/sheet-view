@@ -1,5 +1,5 @@
 import {createStore} from './observable'
-import {DEV, devWarn} from './dev'
+import {devWarn} from './dev'
 import {setPhase} from './phase'
 import {scrollLock, zoomLock} from './locks'
 import {applyRootStyle, buildDefaultHeader, buildSheetDOM, mountSlot} from './dom'
@@ -62,10 +62,9 @@ function syncDialogLabel(entry: SheetEntry): void {
   }
   dialog.removeAttribute('aria-label')
   dialog.removeAttribute('aria-labelledby')
-  if (DEV)
-    devWarn(
-      'Sheet opened without an accessible name, pass `title` or `ariaLabel` (WCAG 4.1.2).',
-    )
+  devWarn(
+    'Sheet opened without an accessible name, pass `title` or `ariaLabel` (WCAG 4.1.2).',
+  )
 }
 
 export function createSheetCore(options: SheetCoreOptions = {}): SheetCore {
@@ -612,7 +611,7 @@ export function createSheetCore(options: SheetCoreOptions = {}): SheetCore {
     entry.rootStyleKeys = applyRootStyle(entry.dialog, props.style)
     mountSlots(entry)
     syncDialogLabel(entry)
-    if (DEV && props.headerSlot == null) {
+    if (props.headerSlot == null) {
       if (props.icon != null && props.title == null) {
         devWarn(
           '`icon` was ignored: it renders in the default header, which only exists when `title` is set.')
