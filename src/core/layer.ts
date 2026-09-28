@@ -77,6 +77,10 @@ export function rescueLayers(layers: SheetLayers): void {
     receiver.setAttribute('data-sheet-part', 'layer-rescue')
     receiver.style.cssText = 'position:fixed;inset:0;pointer-events:none'
     document.body.appendChild(receiver)
+    // Flush style on the fresh receiver before anything moves into it. A move
+    // into a parent with no computed style yet restarts the child's animations
+    // in Chrome, so a toast mid-exit would replay from its first frame.
+    receiver.getBoundingClientRect()
   }
   for (const layer of occupied) liveMove(receiver, layer)
 
