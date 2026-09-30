@@ -30,7 +30,7 @@ describe('CSS contract', () => {
         `--_sheet-${name}-easing: var\\(--sheet-${name}-easing, cubic-bezier\\(([^)]+)\\)\\)`,
       ).exec(base)
       expect(declared).not.toBeNull()
-      const points = declared![1].split(',').map(Number)
+      const points = declared![1]!.split(',').map(Number)
       expect(points).toHaveLength(4)
       for (const point of points) {
         expect(point).toBeGreaterThanOrEqual(0)

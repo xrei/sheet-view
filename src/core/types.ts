@@ -50,7 +50,13 @@ export interface SheetOpenProps {
    * (`--x`) pass through; camelCase properties are normalized to dash-case.
    */
   style?: Record<string, string>
-  /** Blocks X / backdrop / Escape / drag; each fires `onCloseAttempt` instead. */
+  /**
+   * Blocks X / backdrop / drag / Escape; each fires `onCloseAttempt` instead.
+   * Escape is held by cancelling the dialog's `cancel` event, which Chromium
+   * honours only while the page has user activation: a second Escape with no
+   * click or keypress in between closes the dialog natively, and the sheet
+   * tears down at once with `onClose` and `onExited`.
+   */
   closeDisabled?: boolean
   /** Omits the default-header close button entirely (a forced sheet). */
   closeHidden?: boolean

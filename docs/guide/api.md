@@ -130,7 +130,7 @@ Returns a stable `SheetHandle`. All props are optional.
 | `ariaLabel`     | `string`                | Accessible name. Without it the `title` names the dialog — via `aria-labelledby` for the default header, or as `aria-label` when `headerSlot` owns the row. |
 | `closeLabel`    | `string`                | Accessible label for the close button. Default `'Close'`.   |
 | `closeIcon`     | `SheetSlot`             | Glyph inside the close button, in place of the default `×`. The button stays library-owned — its name still comes from `closeLabel`. |
-| `closeDisabled` | `boolean`               | Blocks X/backdrop/Escape/drag; fires `onCloseAttempt`.      |
+| `closeDisabled` | `boolean`               | Blocks X/backdrop/drag/Escape; fires `onCloseAttempt`. Chromium closes natively on a second consecutive Escape, see the notes. |
 | `closeHidden`   | `boolean`               | Omits the default close button (a forced sheet).            |
 | `cardClassName` | `string`                | Class(es) on the card element.                              |
 | `className`     | `string`                | Class(es) on the **root** dialog.                           |
@@ -323,6 +323,13 @@ stays frozen for the rest of the file.
   scroll positions and React subtrees are untouched, and everything is restored
   when they come back up. Target the attributes to restyle the stacked states,
   or override the rules to opt out.
+- **`closeDisabled` and Escape.** Escape closing a modal dialog is the platform
+  contract; `closeDisabled` opts out by cancelling the dialog's `cancel` event.
+  Chromium honours that cancel only while the page has user activation, and an
+  Escape keypress grants none, so a second Escape with no click or other key in
+  between closes the dialog natively. The sheet detects the native close and tears
+  down at once, firing `onClose` and `onExited`, with no exit animation. X,
+  backdrop and drag stay blocked for as long as the flag is set.
 - **Drag-to-dismiss is from the header / grabber.** The content area uses
   `overscroll-behavior: contain`, so scrolling a long body never dismisses the sheet.
   This is deliberate — a long read shouldn't end in an accidental close.

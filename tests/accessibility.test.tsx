@@ -131,6 +131,105 @@ describe('accessibility', () => {
     expect(accessibleName(dialog()!)).toBe('Original')
   })
 
+  // jsdom's showModal() focuses nothing, so activeElement is body at the point
+  // where the core places initial focus: the same landing a real browser gives
+  // when it picks the snap scroller.
+  describe('initial focus', () => {
+    it('lands on the first tabbable in the card, the close button', () => {
+      open({title: 'A', content: () => <p>Body</p>})
+      expect(document.activeElement).toBe(screen.getByLabelText('Close'))
+    })
+
+    it('rests on the named dialog itself when nothing is tabbable', () => {
+      open({title: 'A', closeHidden: true, content: () => <p>Body</p>})
+      expect(dialog()).toHaveAttribute('tabindex', '-1')
+      expect(document.activeElement).toBe(dialog())
+    })
+
+    it('skips a disabled control and a hidden subtree', () => {
+      open({
+        title: 'A',
+        closeHidden: true,
+        content: () => (
+          <>
+            <button disabled>Off</button>
+            <div hidden>
+              <button>Hidden</button>
+            </div>
+          </>
+        ),
+      })
+      expect(document.activeElement).toBe(dialog())
+    })
+
+    it('does not fight autofocus', () => {
+      open({
+        title: 'A',
+        focusOnOpen: true,
+        content: () => <input aria-label="Email" autoFocus />,
+      })
+      expect(document.activeElement).toBe(screen.getByLabelText('Email'))
+    })
+
+    it('moves off the snap scroller when the browser lands there', () => {
+      const showModal = vi
+        .spyOn(HTMLDialogElement.prototype, 'showModal')
+        .mockImplementation(function (this: HTMLDialogElement) {
+          this.setAttribute('open', '')
+          const scroll = this.querySelector<HTMLElement>('.sv-sheet__scroll')!
+          scroll.tabIndex = -1
+          scroll.focus()
+          expect(document.activeElement).toBe(scroll)
+        })
+      open({title: 'A', content: () => <p>Body</p>})
+      expect(showModal).toHaveBeenCalledTimes(1)
+      expect(document.activeElement).toBe(screen.getByLabelText('Close'))
+      showModal.mockRestore()
+    })
+
+    it('update() that rebuilds the header keeps focus on the new close button', () => {
+      let handle!: SheetPublicHandle
+      act(() => {
+        handle = sheets.open({title: 'A', content: () => <p>Body</p>})
+      })
+      const before = screen.getByLabelText('Close')
+      expect(document.activeElement).toBe(before)
+      act(() => {
+        handle.update({title: 'B'})
+      })
+      const after = screen.getByLabelText('Close')
+      expect(after).not.toBe(before)
+      expect(document.activeElement).toBe(after)
+    })
+  })
+
+  describe('keyboard scrolling', () => {
+    const keydown = (target: Element, key: string): boolean => {
+      const event = new KeyboardEvent('keydown', {key, bubbles: true, cancelable: true})
+      target.dispatchEvent(event)
+      return event.defaultPrevented
+    }
+
+    it('scroll keys on the snap scroller and the dialog root are swallowed', () => {
+      open({title: 'A', content: () => <p>Body</p>})
+      const scroll = document.querySelector('.sv-sheet__scroll')!
+      for (const key of ['PageUp', 'PageDown', 'Home', 'End', 'ArrowUp', 'ArrowDown', ' ']) {
+        expect(keydown(scroll, key)).toBe(true)
+        expect(keydown(dialog()!, key)).toBe(true)
+      }
+      expect(keydown(scroll, 'Tab')).toBe(false)
+      expect(keydown(scroll, 'Escape')).toBe(false)
+    })
+
+    it('the same keys aimed at content pass through', () => {
+      open({title: 'A', content: () => <input aria-label="Field" />})
+      const field = screen.getByLabelText('Field')
+      expect(keydown(field, 'Home')).toBe(false)
+      expect(keydown(field, ' ')).toBe(false)
+      expect(keydown(document.querySelector('.sv-sheet__content')!, 'PageUp')).toBe(false)
+    })
+  })
+
   it('a keyed update() that omits headerSlot keeps the custom header and takes the new title as the name', () => {
     act(() => {
       sheets.open({

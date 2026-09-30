@@ -88,6 +88,22 @@ describe('gestures (mobile)', () => {
     return {ms: motionMs(card), closing: core.getSnapshot()[0]!.isClosing, card}
   }
 
+  it('initial focus leaves the snap scroller for the close button', () => {
+    // Chromium's dialog focusing steps pick the keyboard-focusable snap scroller
+    // ahead of the close button; the shim reproduces that landing.
+    const showModal = vi
+      .spyOn(HTMLDialogElement.prototype, 'showModal')
+      .mockImplementation(function (this: HTMLDialogElement) {
+        this.setAttribute('open', '')
+        const scroll = this.querySelector<HTMLElement>('.sv-sheet__scroll')!
+        scroll.tabIndex = -1
+        scroll.focus()
+      })
+    core.open({title: 'A', content: () => 'body'})
+    expect(document.activeElement).toBe(el<HTMLElement>('.sv-sheet__close'))
+    showModal.mockRestore()
+  })
+
   it('a motion is two keyframes joined by a curve that cannot leave [0,1]', () => {
     const box = document.createElement('div')
     runMotion(box, ENTER_EASE, 500, (p) => ({transform: `translateY(${100 * p}px)`}))

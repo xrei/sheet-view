@@ -107,6 +107,38 @@ export function applyRootStyle(
   return applied
 }
 
+// Where showModal() may land focus that the sheet cannot leave there. Chromium
+// treats a scroller as a focusable area and picks the snap scroller ahead of the
+// close button: an unnamed div outside the tab order. Keyboard focus then has to
+// move to the first tabbable in the card, else to the dialog itself, which
+// carries the accessible name. The browser's own pick stands in every other
+// case, so `autofocus` and a first-tabbable landing are untouched. Try-and-verify
+// instead of a layout check: a display:none candidate simply refuses focus.
+const TABBABLE =
+  ':is(a[href],button,input:not([type="hidden"]),select,textarea,summary,[tabindex],[contenteditable]):not(:disabled,[tabindex^="-"])'
+
+export function placeInitialFocus(
+  dialog: HTMLElement,
+  scroll: HTMLElement,
+  card: HTMLElement,
+): void {
+  const active = document.activeElement
+  if (
+    active &&
+    active !== scroll &&
+    active !== document.body &&
+    dialog.contains(active)
+  ) {
+    return
+  }
+  for (const el of card.querySelectorAll<HTMLElement>(TABBABLE)) {
+    if (el.closest('[hidden]')) continue
+    el.focus({preventScroll: true})
+    if (document.activeElement === el) return
+  }
+  dialog.focus({preventScroll: true})
+}
+
 export function buildSheetDOM(props: SheetOpenProps): SheetDOM {
   const dialog = createEl(
     'dialog',
@@ -114,6 +146,9 @@ export function buildSheetDOM(props: SheetOpenProps): SheetDOM {
     {
       'data-sheet-part': 'root',
       'data-sheet-state': 'opening',
+      // Programmatically focusable, so placeInitialFocus can rest focus on the
+      // named dialog when nothing inside it is tabbable. Out of the tab order.
+      tabindex: '-1',
       ...(props.focusOnOpen ? {'data-sheet-focus-open': ''} : {}),
     })
   // The dialog's accessible name is wired after mount (syncDialogLabel) so a

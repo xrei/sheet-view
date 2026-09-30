@@ -1,4 +1,5 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
+import type {MockInstance} from 'vitest'
 import {act, render, screen} from '@testing-library/react'
 
 import {SheetHost} from '../src/react/SheetHost'
@@ -10,7 +11,7 @@ function Boom(): never {
 }
 
 // React logs a caught error to console.error itself, on top of the library's own.
-let errorSpy: ReturnType<typeof vi.spyOn>
+let errorSpy: MockInstance<typeof console.error>
 
 describe('slot error containment', () => {
   let sheets: Sheets

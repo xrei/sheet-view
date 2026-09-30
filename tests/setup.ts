@@ -16,9 +16,11 @@ installDialogShim()
 if (typeof Element.prototype.scrollTo !== 'function') {
   Element.prototype.scrollTo = function scrollTo(
     this: Element,
-    ...args: [ScrollToOptions?] | [number, number]
+    xOrOptions?: ScrollToOptions | number,
+    y?: number,
   ): void {
-    const opts = typeof args[0] === 'object' ? args[0] : {top: args[1], left: args[0]}
+    const opts =
+      typeof xOrOptions === 'object' ? xOrOptions : {top: y, left: xOrOptions}
     if (opts?.top != null) this.scrollTop = opts.top
     if (opts?.left != null) this.scrollLeft = opts.left
   }

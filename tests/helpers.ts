@@ -191,7 +191,7 @@ export function stubLayout(stub: LayoutStub): () => void {
     Object.defineProperty(window, key, {configurable: true, writable: true, value})
     restores.push(() => {
       if (saved) Object.defineProperty(window, key, saved)
-      else delete (window as Record<string, unknown>)[key]
+      else delete (window as unknown as Record<string, unknown>)[key]
     })
   }
   const patchDocEl = (key: 'clientWidth' | 'scrollHeight', value: number): void => {

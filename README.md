@@ -254,7 +254,7 @@ The docs have an anatomy demo that colour-codes each of these parts. Run
 | `size`                          | `'sm' \| 'md' \| 'lg' \| 'xl'`             | Default `'lg'`. The width and height for each bucket are tokens — see [Sizing](https://xrei.github.io/sheet-view/guide/theming#sizing). |
 | `focusOnOpen`                   | `boolean`                                  | A field takes focus on open, so the sheet opens keyboard-safe on mobile. |
 | `content` / `headerSlot` / `footer` / `overlaySlot` | `ReactNode \| (ctx) => ReactNode` | Slot content. (`Node \| string \| fn` in the core.)          |
-| `closeDisabled`                 | `boolean`                                  | Blocks X, backdrop, Escape and drag; fires `onCloseAttempt` instead. |
+| `closeDisabled`                 | `boolean`                                  | Blocks X, backdrop, drag and Escape; fires `onCloseAttempt` instead. Chromium closes natively on a second consecutive Escape, see the notes. |
 | `closeHidden`                   | `boolean`                                  | Leaves the default header's close button out.                |
 | `closeLabel`                    | `string`                                   | Accessible label for the close button. Default `'Close'`.    |
 | `closeIcon`                     | `ReactNode \| (ctx) => ReactNode`          | Glyph inside the close button, in place of `×`. The button itself stays ours, so you keep the label, `aria-disabled` and the 44×44 hit target. Needs `title`; ignored with `headerSlot` or `closeHidden`. |
@@ -415,6 +415,14 @@ the topmost one, which is only an approximation — jsdom has no top-layer stack
 - **`strategy: 'replace'`.** The replaced sheet closes silently: `onExited`
   fires, `onClose` does not. A native close — a `<form method="dialog">` submit,
   or a browser force-close — tears down cleanly and fires both.
+- **`closeDisabled` and Escape.** Escape closing a modal dialog is the platform
+  contract, and `closeDisabled` opts out of it by cancelling the dialog's
+  `cancel` event. Chromium honours that cancel only while the page has user
+  activation, and an Escape keypress grants none, so a second Escape with no
+  click or other key in between closes the dialog natively. The sheet detects
+  the native close and tears down at once, firing `onClose` and `onExited`,
+  with no exit animation. X, backdrop and drag stay blocked for as long as the
+  flag is set.
 - **The raw top layer is `pointer-events: none`.** You only reach it by going
   around the mount points and appending to `slots.toplayer` yourself. Children
   there must set `pointer-events: auto` **on the panel itself**. A full-bleed

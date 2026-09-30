@@ -688,6 +688,16 @@ export function setupDragToClose(
   })
 }
 
+const SCROLL_KEYS = new Set([
+  'ArrowUp',
+  'ArrowDown',
+  'PageUp',
+  'PageDown',
+  'Home',
+  'End',
+  ' ',
+])
+
 export function setupCloseHandlers(
   entry: SheetEntry,
   requestClose: () => void,
@@ -741,15 +751,26 @@ export function setupCloseHandlers(
     requestClose()
   }
 
+  // A scroll key on the snap scroller itself, or on the dialog root, pages the
+  // scroller to the closed spacer, and the scroll handler reads that as a
+  // dismiss with no gesture behind it. Escape is the keyboard close. Keys aimed
+  // at the content scroller, a field or a button pass untouched.
+  const onKeyDown = (e: KeyboardEvent): void => {
+    if (e.target !== scroll && e.target !== dialog) return
+    if (SCROLL_KEYS.has(e.key)) e.preventDefault()
+  }
+
   dialog.addEventListener('pointerdown', onPointerDown)
   dialog.addEventListener('pointercancel', onPointerCancel)
   dialog.addEventListener('click', onClick)
+  dialog.addEventListener('keydown', onKeyDown)
   dialog.addEventListener('cancel', onFileInputCancelCapture, {capture: true})
   dialog.addEventListener('cancel', onCancel)
   entry.cleanups.push(() => {
     dialog.removeEventListener('pointerdown', onPointerDown)
     dialog.removeEventListener('pointercancel', onPointerCancel)
     dialog.removeEventListener('click', onClick)
+    dialog.removeEventListener('keydown', onKeyDown)
     dialog.removeEventListener('cancel', onFileInputCancelCapture, {
       capture: true,
     })

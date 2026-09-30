@@ -58,6 +58,11 @@ html[data-sheet-scroll-pin][data-sheet-scroll-pin] body {
 .sv-sheet:not([open]) {
   display: none;
 }
+/* The root takes focus when nothing in the card is tabbable. It is out of the
+   tab order, so the ring the UA would draw around the whole viewport is noise. */
+.sv-sheet:focus-visible {
+  outline: none;
+}
 
 /* The real dim is `.sv-sheet__backdrop`, a regular child: `::backdrop` cannot
    transition out across dialog.close(). */

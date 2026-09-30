@@ -2,7 +2,13 @@ import {createStore} from './observable'
 import {devWarn} from './dev'
 import {setPhase} from './phase'
 import {scrollLock, zoomLock} from './locks'
-import {applyRootStyle, buildDefaultHeader, buildSheetDOM, mountSlot} from './dom'
+import {
+  applyRootStyle,
+  buildDefaultHeader,
+  buildSheetDOM,
+  mountSlot,
+  placeInitialFocus,
+} from './dom'
 import {guardLayers, rescueLayers} from './layer'
 import {
   ENTER_EASE,
@@ -140,6 +146,15 @@ export function createSheetCore(options: SheetCoreOptions = {}): SheetCore {
   function updateEntry(entry: SheetEntry, nextProps: Partial<SheetOpenProps>): void {
     entry.props = {...entry.props, ...nextProps}
     mountSlots(entry)
+    // A rebuilt default header replaces the close button; if it held focus,
+    // focus fell to body inside a modal dialog. Only the top sheet takes it.
+    if (
+      !entry.isClosing &&
+      stack[stack.length - 1] === entry &&
+      (!document.activeElement || document.activeElement === document.body)
+    ) {
+      placeInitialFocus(entry.dialog, entry.scroll, entry.card)
+    }
 
     // Resetting className is safe: the card only ever carries sv-sheet__card
     // plus the consumer's cardClassName.
@@ -659,6 +674,7 @@ export function createSheetCore(options: SheetCoreOptions = {}): SheetCore {
     syncStackRoles(openSettleMs, ENTER_EASE)
 
     entry.dialog.showModal()
+    placeInitialFocus(entry.dialog, entry.scroll, entry.card)
     runOpenAnimation(entry, isMobile, openSettleMs)
     emit()
 
