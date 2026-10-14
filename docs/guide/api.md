@@ -344,26 +344,15 @@ stays frozen for the rest of the file.
 - **Trigger-button `:hover` on iOS.** iOS applies `:hover` on tap and keeps it until
   another element is tapped — so a swipe-closed sheet leaves its trigger highlighted.
   Gate your own `:hover` styles behind `@media (hover: hover)`; the built-in theme does.
-- **Third-party overlays the page doesn't own** (password-manager autofill).
-  `showModal()` makes everything outside the dialog inert, and an extension injects its
-  dropdown into the page, not into your dialog. Shown as a popover, it draws above the
-  sheet but can't be clicked; the pointer falls through to whatever sits beneath it —
-  and if that's the dim, the sheet closes. This is per-spec top-layer behaviour
-  ([whatwg/html#9936](https://github.com/whatwg/html/issues/9936)).
+- **Password-manager autofill.** An extension that shows its dropdown as a
+  `popover="manual"` element straight on `<body>` or `<html>` (iCloud Passwords in
+  Chrome does) gets that element moved into the topmost sheet with
+  [`moveBefore()`](https://developer.mozilla.org/en-US/docs/Web/API/Element/moveBefore).
+  It stays open, in place and focused. When that sheet closes, it moves to the sheet
+  below, or back to where it was injected.
 
-  So the sheet takes such a dropdown in. When an extension shows a `popover="manual"`
-  element straight on `<body>` or `<html>` while a sheet is open (iCloud Passwords in
-  Chrome does), it's moved into the topmost sheet with
-  [`moveBefore()`](https://developer.mozilla.org/en-US/docs/Web/API/Element/moveBefore):
-  it stays open, in place and focused, and becomes clickable. When that sheet closes,
-  it moves to the sheet below, or back to where it was injected.
-
-  - It needs `moveBefore()`. A browser without it (currently Safari) moves nothing, and
-    the dropdown stays unclickable there — Safari's own iCloud autofill is native UI and
-    never had the problem.
-  - Only top-layer popovers injected at the top of the document are moved. A password
-    manager that puts its menu inside the dialog itself, as Bitwarden and Proton Pass
-    do, handles this on its own and is left alone.
+  - A password manager that puts its menu inside the dialog itself, as Bitwarden and
+    Proton Pass do, is left alone.
   - Nodes your page renders are left alone: only a node with inline `!important`
     styles and no framework bookkeeping on it qualifies. A hand-built popover of exactly
     that shape, shown on `<body>` over a sheet, would be moved too — and put back when
@@ -371,11 +360,7 @@ stays frozen for the rest of the file.
   - Once moved, the dropdown is part of the sheet, so Tab from the last field can reach
     it.
 
-  Built-in browser autofill (mobile, Chrome's own manager, Safari) is native UI and
-  unaffected.
-
-  Your own popovers don't rely on this — the rule is only "is the DOM inside the
-  `<dialog>`", and your dropdowns are DOM you control. See [Popovers](./popovers).
+  Your own popovers are DOM you control — see [Popovers](./popovers).
 - **`strategy: 'replace'`.** The replaced sheet closes silently — `onExited` fires,
   `onClose` does not. A native close (a `<form method="dialog">` submit, or a browser
   force-close) tears down cleanly and fires both.
