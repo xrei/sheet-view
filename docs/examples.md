@@ -87,8 +87,9 @@ point. `autocomplete` attributes let password managers offer autofill;
 `focusOnOpen` keeps the entrance keyboard-safe on mobile while the email field
 autofocuses. The `<select>` and date popups are OS-rendered, so the modal top
 layer doesn't apply to them — no portalling, no positioning code. Built-in
-browser autofill works; extension-injected dropdowns can't be clicked over a
-modal dialog — see [Notes & limitations](/guide/api#notes-limitations).
+browser autofill works, and an extension's injected dropdown (iCloud Passwords in
+Chrome) is moved into the sheet so it can be clicked, where the browser has
+`moveBefore()` — see [Notes & limitations](/guide/api#notes-limitations).
 
 <DemoPanel>
 <template #preview>

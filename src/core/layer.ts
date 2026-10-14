@@ -1,7 +1,7 @@
 import type {SheetDOM} from './internal'
 import type {SheetLayers} from './types'
 
-interface MoveBeforeParent extends Node {
+export interface MoveBeforeParent extends Node {
   moveBefore?: (node: Node, child: Node | null) => void
 }
 

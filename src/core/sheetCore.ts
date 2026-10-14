@@ -2,6 +2,7 @@ import {createStore} from './observable'
 import {devWarn} from './dev'
 import {setPhase} from './phase'
 import {scrollLock, zoomLock} from './locks'
+import {evictForeignOverlays, foreignOverlays} from './foreign'
 import {
   applyRootStyle,
   buildDefaultHeader,
@@ -522,6 +523,9 @@ export function createSheetCore(options: SheetCoreOptions = {}): SheetCore {
 
         // After the cleanups, so the layer guard is already disconnected.
         rescueLayers(entry.layers)
+        // Before close() and remove(): removal hides a popover and unloads its
+        // frame.
+        evictForeignOverlays(entry.dialog)
 
         const idx = stack.indexOf(entry)
         if (idx >= 0) stack.splice(idx, 1)
@@ -538,6 +542,7 @@ export function createSheetCore(options: SheetCoreOptions = {}): SheetCore {
 
         scrollLock.release()
         if (useZoomLock) zoomLock.release()
+        foreignOverlays.release()
 
         entry.props.onExited?.()
       },
@@ -643,6 +648,9 @@ export function createSheetCore(options: SheetCoreOptions = {}): SheetCore {
     }
     scrollLock.acquire()
     if (useZoomLock) zoomLock.acquire()
+    // Before showModal(): its autofocus, or focusOnOpen, is what wakes an
+    // autofill extension.
+    foreignOverlays.acquire()
     entry.cleanups.push(guardLayers(dom))
     setupCloseHandlers(entry, () => requestClose(entry))
     setupDragToClose(
@@ -662,6 +670,9 @@ export function createSheetCore(options: SheetCoreOptions = {}): SheetCore {
     // or a browser force-close that ignores our cancel preventDefault. Without
     // this the entry stays in the stack and the scroll lock never releases.
     const onNativeClose = (): void => {
+      // The dialog is already out of the top layer, so an adopted overlay inside
+      // it stops rendering until the teardown tick; hand it on now.
+      evictForeignOverlays(entry.dialog)
       if (!entry.isClosing) closeEntry(entry, {immediate: true})
     }
     entry.dialog.addEventListener('close', onNativeClose)
@@ -698,12 +709,14 @@ export function createSheetCore(options: SheetCoreOptions = {}): SheetCore {
             fn()
           } catch {}
         }
+        evictForeignOverlays(entry.dialog)
         try {
           if (entry.dialog.open) entry.dialog.close()
         } catch {}
         entry.dialog.remove()
         scrollLock.release()
         if (useZoomLock) zoomLock.release()
+        foreignOverlays.release()
       }
       stack.length = 0
       sheetsByKey.clear()

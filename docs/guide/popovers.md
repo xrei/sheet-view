@@ -17,9 +17,9 @@ portaled to `document.body`, for instance — it is inert, and no amount of `z-i
 changes that.
 
 Your own popovers are DOM you control, so you get to choose. The library gives you the
-nodes to choose from. (The case a page genuinely cannot fix is UI it does *not* own, such
-as a password manager's injected autofill — see
-[third-party overlays](./api#notes-limitations).)
+nodes to choose from. (UI the page does *not* own, such as a password manager's injected
+autofill, isn't yours to mount: where the browser has `moveBefore()`, the library moves it
+into the topmost sheet itself — see [third-party overlays](./api#notes-limitations).)
 
 ## Choosing a layer
 

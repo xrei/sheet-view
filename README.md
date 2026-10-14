@@ -1,7 +1,7 @@
 # sheet-view
 
 [![npm version](https://img.shields.io/npm/v/sheet-view.svg)](https://www.npmjs.com/package/sheet-view)
-[![min+gzip](https://img.shields.io/badge/min%2Bgzip-7.8%20kB-brightgreen.svg)](https://bundlephobia.com/package/sheet-view)
+[![min+gzip](https://img.shields.io/badge/min%2Bgzip-8.4%20kB-brightgreen.svg)](https://bundlephobia.com/package/sheet-view)
 [![license](https://img.shields.io/npm/l/sheet-view.svg)](./LICENSE)
 
 A headless bottom-sheet / modal built out of parts the browser already has.
@@ -17,7 +17,7 @@ thin **React adapter** portals your content into it.
   React adapter lives at `sheet-view/react`.
 - **Native a11y for free** — `showModal()` gives you the focus trap, the inert
   background, Escape handling and focus restore.
-- **Tiny** — 7.8 kB min+gzip for the core, 9.5 kB with the React adapter, and no
+- **Tiny** — 8.4 kB min+gzip for the core, 10.1 kB with the React adapter, and no
   runtime dependencies.
 - **TypeScript-first** — types ship in the box. ESM only.
 
@@ -398,17 +398,38 @@ the topmost one, which is only an approximation — jsdom has no top-layer stack
   `:hover` styles behind `@media (hover: hover)`; the built-in theme already does.
 - **Overlays the page does not own** (password-manager autofill).
   `showModal()` makes everything outside the dialog inert, and an extension
-  injects its dropdown into the page, not into your dialog. It draws above the
-  sheet but cannot be clicked. The pointer falls through to whatever sits
-  beneath it, and if that is the dim, the sheet closes. This is how the top layer
-  is specified ([whatwg/html#9936](https://github.com/whatwg/html/issues/9936)),
-  and a page cannot override it: you cannot move someone else's DOM inside your
-  dialog. Some password managers detect a modal dialog and work around it, others
-  do not. The browser's own built-in autofill (mobile, Chrome's manager, Safari)
-  is native UI and is not affected.
+  injects its dropdown into the page, not into your dialog. Shown as a popover,
+  it draws above the sheet but cannot be clicked. The pointer falls through to
+  whatever sits beneath it, and if that is the dim, the sheet closes. This is how
+  the top layer is specified
+  ([whatwg/html#9936](https://github.com/whatwg/html/issues/9936)).
 
-  **This is not a limit on your own popovers.** The only rule is "is the DOM
-  inside the `<dialog>`", and your dropdowns are DOM you control. Mount them with
+  So the sheet takes such a dropdown in. When an extension shows a
+  `popover="manual"` element straight on `<body>` or `<html>` while a sheet is
+  open (iCloud Passwords in Chrome does), the element is moved into the topmost
+  sheet with
+  [`moveBefore()`](https://developer.mozilla.org/en-US/docs/Web/API/Element/moveBefore).
+  It stays open, in place and focused, and becomes clickable. When that sheet
+  closes, it moves to the sheet below, or back to where it was injected.
+
+  - It needs `moveBefore()`. A browser without it (currently Safari) moves
+    nothing, and the dropdown stays unclickable there. Safari's own iCloud
+    autofill is native UI and never had the problem.
+  - Only top-layer popovers injected at the top of the document are moved. A
+    password manager that puts its menu inside the dialog itself, as Bitwarden
+    and Proton Pass do, handles this on its own and is left alone.
+  - Nodes your page renders are left alone. Only a node with inline `!important`
+    styles and no framework bookkeeping on it qualifies. A hand-built popover of
+    exactly that shape, shown on `<body>` over a sheet, would be moved too, and
+    put back when the sheet closes.
+  - Once moved, the dropdown is part of the sheet, so Tab from the last field can
+    reach it.
+
+  The browser's own built-in autofill (mobile, Chrome's manager, Safari) is
+  native UI and is not affected.
+
+  **Your own popovers do not rely on this.** The only rule is "is the DOM inside
+  the `<dialog>`", and your dropdowns are DOM you control. Mount them with
   `<SheetPortal>` and they paint above the card, stay clickable, and do not
   dismiss the sheet. See
   [Popovers](https://xrei.github.io/sheet-view/guide/popovers).
